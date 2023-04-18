@@ -150,9 +150,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.set_annotations_opacity()
     
     def draw_spheres(self, opacity=None, color=None):
-        # if self.markups is None:
-        #     self.markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[0]
-
         nb_spheres = self.markups.GetNumberOfControlPoints()//2
         if nb_spheres > 0:
             spheres = [vtk.vtkSphereSource() for i in range(0, nb_spheres)]
@@ -171,7 +168,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.create_model(self.appender)
 
     def updateSpheres(self, caller = None, event = None ):
-        print("Update spheres")
         self.remove_nodes_by_name("Annotations")
 
         nb_spheres = self.markups.GetNumberOfControlPoints()//2
@@ -193,7 +189,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             model = self.create_model(self.appender)
             
     def MoveSpheres(self, caller = None, event = None):
-        print("Move spheres")
         if self.spheres and self.appender:
             for idx, sphere in enumerate(self.spheres):
                 center, radius = self.getSphereCenterAndRadius(self.markups, idx*2)
@@ -210,7 +205,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_annotations_color(self, color=None):
         color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.ColorPickerButton.color.red()/255, self.ui.ColorPickerButton.color.green()/255, self.ui.ColorPickerButton.color.blue()/255)
-        #color = tuple(int(str(self.ui.ColorPickerButton.color)[1:][i:i+2], 16) for i in (0, 2, 4))
         # update sphere color
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
         for node in nodes:
@@ -221,7 +215,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # update spheres opacity
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
         for node in nodes:
-            node.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/4)
+            node.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/2)
 
 
     def create_model(self, model):
@@ -231,15 +225,15 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         modelNode.SetName("Annotations")
         modelNode.GetDisplayNode().SetVisibility2D(True)
         modelNode.GetDisplayNode().SetSliceIntersectionThickness(3)
-        modelNode.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/10)
+        modelNode.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/2)
         
-        color = (self.ui.ColorPickerButton.color.red()/255, self.ui.ColorPickerButton.color.green()/255, self.ui.ColorPickerButton.color.blue()/255)
+        color = (self.ui.ColorPickerButton.color.red()/255, 
+                self.ui.ColorPickerButton.color.green()/255, 
+                self.ui.ColorPickerButton.color.blue()/255)
         modelNode.GetDisplayNode().SetColor(color)
 
         self.ui.annotationsVisibility.checked = 1
-
         return modelNode
-
 
     def remove_nodes_by_type(self, node_type_name):
         volumeNodes = slicer.util.getNodesByClass(node_type_name)
@@ -263,10 +257,10 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not displayNode: displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(volNode)
             volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
 
-            voxels = slicer.util.arrayFromVolume(volNode)
-            self.ui.volumeThreshold.maximum = np.max(voxels)
-            self.ui.volumeThreshold.minimum = np.min(voxels)
-            self.ui.volumeThreshold.value = (self.ui.volumeThreshold.minimum+self.ui.volumeThreshold.maximum)/2
+            min_val, max_val = volNode.GetImageData().GetScalarRange()
+            self.ui.volumeThreshold.maximum = max_val
+            self.ui.volumeThreshold.minimum = min_val
+            self.ui.volumeThreshold.value = (max_val+min_val)/3
 
             self.ui.vol_visibility.checked = 1
 
@@ -282,25 +276,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.remove_nodes_by_type("vtkMRMLScalarVolumeNode") # remove existing volume
         self.remove_nodes_by_type("vtkMRMLMarkupsROINode") # remove existing volume
 
-    # def onVolumeThresholdChanged(self):
-    #     volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-    #     if volNode:
-    #         displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
-    #         func = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
-    #         p1, p2, p3 = [0]*4, [0]*4, [0]*4 # points
-    #         func.GetNodeValue(1, p1)
-    #         func.GetNodeValue(2, p2)
-    #         func.GetNodeValue(3, p3)
-    #         d = self.ui.volumeThreshold.value - p2[0]
-    #         p1[0] += d
-    #         p2[0] += d
-    #         p3[0] += d
-
-    #         p1[1], p2[1], p3[1] = 0, self.ui.volumeOpacity.value, 0
-    #         func.SetNodeValue(1,p1)
-    #         func.SetNodeValue(2,p2)
-    #         func.SetNodeValue(3,p3)
-
     def onVolumeOpacityChanged(self):
         volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
         if volNode:
@@ -311,139 +286,21 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             p[1] = self.ui.volumeOpacity.value
             scalarOpacity.SetNodeValue(1, p)
 
-    # def onVolumeOpacityChanged(self):
-    #     volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-    #     if volNode:
-    #         displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
-    #         func = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
-    #         p = [0]*4
-    #         func.GetNodeValue(2, p)
-    #         p[1] = self.ui.volumeOpacity.value
-    #         func.SetNodeValue(2, p)
-    ##############################################################################################################
-    
-
     def cleanup(self):
-        """
-        Called when the application closes and the module widget is destroyed.
-        """
         slicer.mrmlScene.Clear(0)
         self.removeObservers()
 
     def enter(self):
-        """
-        Called each time the user opens this module.
-        """
-        # Make sure parameter node exists and observed
         self.initializeParameterNode()
 
     def exit(self):
-        """
-        Called each time the user opens a different module.
-        """
-        # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
         return
-        # self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
 
     def onSceneStartClose(self, caller, event):
-        """
-        Called just before the scene is closed.
-        """
-        # Parameter node will be reset, do not use it anymore
         return
-        # self.setParameterNode(None)
 
     def onSceneEndClose(self, caller, event):
-        """
-        Called just after the scene is closed.
-        """
-        # If this module is shown while the scene is closed then recreate a new parameter node immediately
-        # if self.parent.isEntered:
-        #     self.initializeParameterNode()
         return
 
     def initializeParameterNode(self):
-        """
-        Ensure parameter node exists and observed.
-        """
-        # Parameter node stores all user choices in parameter values, node selections, etc.
-        # so that when the scene is saved and reloaded, these settings are restored.
         return
-
-        #self.setParameterNode(self.logic.getParameterNode())
-
-        # Select default input nodes if nothing is selected yet to save a few clicks for the user
-        # if not self._parameterNode.GetNodeReference("InputVolume"):
-        #     firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
-        #     if firstVolumeNode:
-        #         self._parameterNode.SetNodeReferenceID("InputVolume", firstVolumeNode.GetID())
-
-    # def setParameterNode(self, inputParameterNode):
-    #     """
-    #     Set and observe parameter node.
-    #     Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-    #     """
-
-    #     if inputParameterNode:
-    #         self.logic.setDefaultParameters(inputParameterNode)
-
-    #     # Unobserve previously selected parameter node and add an observer to the newly selected.
-    #     # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
-    #     # those are reflected immediately in the GUI.
-    #     if self._parameterNode is not None:
-    #         self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-    #     self._parameterNode = inputParameterNode
-    #     if self._parameterNode is not None:
-    #         self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-
-    #     # Initial GUI update
-    #     self.updateGUIFromParameterNode()
-
-    # def updateGUIFromParameterNode(self, caller=None, event=None):
-    #     """
-    #     This method is called whenever parameter node is changed.
-    #     The module GUI is updated to show the current state of the parameter node.
-    #     """
-
-    #     if self._parameterNode is None or self._updatingGUIFromParameterNode:
-    #         return
-
-    #     # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
-    #     self._updatingGUIFromParameterNode = True
-
-    #     # Update node selectors and sliders
-    #     self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputVolume"))
-    #     self.ui.outputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputVolume"))
-    #     self.ui.invertedOutputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputVolumeInverse"))
-    #     self.ui.imageThresholdSliderWidget.value = float(self._parameterNode.GetParameter("Threshold"))
-    #     self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
-
-    #     # Update buttons states and tooltips
-    #     if self._parameterNode.GetNodeReference("InputVolume") and self._parameterNode.GetNodeReference("OutputVolume"):
-    #         self.ui.applyButton.toolTip = "Compute output volume"
-    #         self.ui.applyButton.enabled = True
-    #     else:
-    #         self.ui.applyButton.toolTip = "Select input and output volume nodes"
-    #         self.ui.applyButton.enabled = False
-
-    #     # All the GUI updates are done
-    #     self._updatingGUIFromParameterNode = False
-
-    # def updateParameterNodeFromGUI(self, caller=None, event=None):
-    #     """
-    #     This method is called when the user makes any change in the GUI.
-    #     The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
-    #     """
-
-    #     if self._parameterNode is None or self._updatingGUIFromParameterNode:
-    #         return
-
-    #     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
-
-    #     self._parameterNode.SetNodeReferenceID("InputVolume", self.ui.inputSelector.currentNodeID)
-    #     self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
-    #     self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
-    #     self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
-    #     self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
-
-    #     self._parameterNode.EndModify(wasModified)
