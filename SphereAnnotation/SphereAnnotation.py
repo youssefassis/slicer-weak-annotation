@@ -204,7 +204,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             node.GetDisplayNode().SetVisibility(self.ui.annotationsVisibility.checked)
 
     def set_annotations_color(self, color=None):
-        color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.ColorPickerButton.color.red()/255, self.ui.ColorPickerButton.color.green()/255, self.ui.ColorPickerButton.color.blue()/255)
+        color = (self.ui.ColorPickerButton.color.red()/255, 
+                 self.ui.ColorPickerButton.color.green()/255, 
+                 self.ui.ColorPickerButton.color.blue()/255)
         # update sphere color
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
         for node in nodes:
@@ -216,7 +218,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
         for node in nodes:
             node.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/2)
-
 
     def create_model(self, model):
         self.remove_nodes_by_name("Annotations")
