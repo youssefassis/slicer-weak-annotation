@@ -11,7 +11,7 @@ from slicer.util import VTKObservationMixin
 class SphereAnnotation(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = "Spheres Annotation"  # TODO: make this more human readable by adding spaces
+        self.parent.title = "Sphere Annotation"
         self.parent.categories = ["Aneurysms"]
         self.parent.dependencies = []
         self.parent.contributors = ["Youssef Assis (Loria lab.)"]
@@ -27,7 +27,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
 
         slicer.app.pythonConsole().clear()
-        self.cleanup()
+#        self.cleanup()
+        self.cleanButton()
 
     def setup(self):
         """
@@ -42,11 +43,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         uiWidget.setMRMLScene(slicer.mrmlScene)
 
-        # Create logic class. Logic implements all computations that should be possible to run
-        # in batch mode, without a graphical user interface.
-        #self.logic = SphereAnnotationLogic()
-
-        # Buttons
         #### Volume
         self.ui.load_volume_button.connect('clicked(bool)', self.load_volume)
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
@@ -69,14 +65,12 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.spheres = None
         self.appender = None
 
-    # def initializeParameterNode(self):
-        """
-        Ensure parameter node exists and observed.
-        """
-        # Parameter node stores all user choices in parameter values, node selections, etc.
-        # so that when the scene is saved and reloaded, these settings are restored.
-
     def onVolumeThresholdChanged(self, value):
+        """
+        This method is an event handler that is triggered when the volume threshold is changed. The input parameter "value" represents the new threshold value set by the user.
+        The method first retrieves the volume node from the scene by using the getNodesByClass method of the slicer.util module. It then gets the volume rendering display node and the volume property node of the first volume in the scene by using the GetFirstVolumeRenderingDisplayNode and GetVolumePropertyNode methods of the slicer.modules.volumerendering.logic() module.
+        Next, it retrieves the scalar opacity transfer function from the volume property node and the scalar range of the volume from the volume node. It then sets the threshold by adding two points to the scalar opacity transfer function: one with the new upper threshold value and the opacity value set by the user, and another with the value of the threshold minus a margin, and an opacity of 0.0. The margin is calculated as 10% of the scalar range upper bound.
+        """
         volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
         if volNode:
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
@@ -96,6 +90,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             scalarOpacity.AddPoint(max(rang[0], upperThreshold-margin), 0.0)
 
     def saveButton(self):
+        """
+        This method is associated with a "Save" button and is used to open the "Save Data" dialog box in 3D Slicer.
+        """
         slicer.util.openSaveDataDialog()
 
     def clearButton(self):
