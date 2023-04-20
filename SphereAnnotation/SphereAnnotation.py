@@ -1,7 +1,4 @@
-import logging
-import os
-
-import vtk, qt
+import logging, os, vtk, qt
 import numpy as np
 
 import slicer
@@ -27,7 +24,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
 
         slicer.app.pythonConsole().clear()
-#        self.cleanup()
         self.cleanButton()
 
     def setup(self):
@@ -67,9 +63,19 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onVolumeThresholdChanged(self, value):
         """
-        This method is an event handler that is triggered when the volume threshold is changed. The input parameter "value" represents the new threshold value set by the user.
-        The method first retrieves the volume node from the scene by using the getNodesByClass method of the slicer.util module. It then gets the volume rendering display node and the volume property node of the first volume in the scene by using the GetFirstVolumeRenderingDisplayNode and GetVolumePropertyNode methods of the slicer.modules.volumerendering.logic() module.
-        Next, it retrieves the scalar opacity transfer function from the volume property node and the scalar range of the volume from the volume node. It then sets the threshold by adding two points to the scalar opacity transfer function: one with the new upper threshold value and the opacity value set by the user, and another with the value of the threshold minus a margin, and an opacity of 0.0. The margin is calculated as 10% of the scalar range upper bound.
+        This method is an event handler that is triggered when the volume threshold is changed. 
+        The input parameter "value" represents the new threshold value set by the user.
+        The method first retrieves the volume node from the scene by using the getNodesByClass 
+        method of the slicer.util module. It then gets the volume rendering display node and 
+        the volume property node of the first volume in the scene by using the 
+        GetFirstVolumeRenderingDisplayNode and GetVolumePropertyNode methods of the 
+        slicer.modules.volumerendering.logic() module.
+        Next, it retrieves the scalar opacity transfer function from the volume property node
+        and the scalar range of the volume from the volume node. It then sets the threshold 
+        by adding two points to the scalar opacity transfer function: one with the new upper 
+        threshold value and the opacity value set by the user, and another with the value of
+        the threshold minus a margin, and an opacity of 0.0. The margin is calculated as 10%
+        of the scalar range upper bound.
         """
         volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
         if volNode:
@@ -98,105 +104,136 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def clearButton(self):
         self.cleanup()
 
-    # Annotations = Spheres
     def create_point(self):
+        """
+        Create a new point in the 3D Slicer scene. The function then adds three observer methods to
+        the markups attribute, which listen for changes to the point in the Slicer scene and update
+        the spheres according to the point position.
+        """
         slicer.modules.markups.logic().StartPlaceMode(0)
         if self.markups is None and slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             self.markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[0]
-            self.markups.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.updateSpheres, 2)
-            self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.updateSpheres, 2)
+            
+            self.markups.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
+            self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
+
             self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
 
     def remove_point(self):
+        """
+        The purpose of this function is to remove the last created point from a vtkMRMLMarkupsFiducialNode
+        in a 3D Slicer scene.
+        """
         markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
         for markup in markups:
             if markup.GetNumberOfControlPoints() > 0:
                 markup.RemoveNthControlPoint(markup.GetNumberOfControlPoints() - 1)
 
     def getSphereCenterAndRadius(self, markup, startPointIndex):
+        # Create two empty numpy arrays of size 3 to hold the positions of the two points.
         A, B = np.zeros(3), np.zeros(3)
+        # Get the position of the nth control point (startPointIndex) and store it in A.
         markup.GetNthControlPointPosition(startPointIndex, A)
+        # Get the position of the (n+1)th control point and store it in B.
         markup.GetNthControlPointPosition(startPointIndex+1, B)
+        # Calculate the midpoint between the two points.
         s = (A + B) / 2
+        # Calculate the radius of the sphere using the distance between the two points.
         R = np.linalg.norm(A - B)/2
+        # Return the center and radius of the sphere as a tuple.
         return s, R
 
     def remove_nodes_by_name(self, name):
+        # Get a list of all nodes in the Slicer scene with the specified name.
         nodes = slicer.mrmlScene.GetNodesByName(name)
+        # Loop through each node with the specified name and remove it from the Slicer scene.
         for node in nodes:
             slicer.mrmlScene.RemoveNode(node)
 
     def load_annotations_from_file (self):
+        # Create a file dialog for selecting the annotation file to load.
         dialog = qt.QFileDialog()
         dialog.setNameFilters(['Markups (*.Fcsv)'])
+        # If the user selects a file, load it.
         if dialog.exec_() == qt.QDialog.Accepted:
+            # Get the file path of the selected file.
             file_path = dialog.selectedFiles()[0]
+            try:
+                # Load the markups from the specified file and add them to the Slicer scene.
+                slicer.util.loadMarkupsFiducialList(file_path)
+                # Get a reference to the newly added points node.
+                self.markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[0]
 
-            # try:
-            slicer.util.loadMarkupsFiducialList(file_path)
-            #if self.markups is None:
-            self.markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[0]
-            self.markups.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.updateSpheres, 2)
-            self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.updateSpheres, 2)
-            self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
-            # except:
-            #     slicer.util.errorDisplay('Please choose markups file with the right format.')
+                # Add event observers to the markups fiducial node.
+                self.markups.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
+                self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
 
+                self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
+            except:
+                # Display an error message if there was an error loading the file.
+                slicer.util.errorDisplay('Error when loading the Fidicual file.')
+
+            # Draw spheres at the locations of the points.
             self.draw_spheres()
-            self.set_annotations_color()
-            self.set_annotations_opacity()
     
-    def draw_spheres(self, opacity=None, color=None):
+    def draw_spheres(self, caller = None, event = None ):
+        self.spheres, self.appender = None, None
+
+        # Calculate the number of spheres to be drawn based on the number of control points in the markups fiducial node
         nb_spheres = self.markups.GetNumberOfControlPoints()//2
-        if nb_spheres > 0:
-            spheres = [vtk.vtkSphereSource() for i in range(0, nb_spheres)]
+    
+        # If there are spheres to draw
+        if nb_spheres > 0:            
+            # Create a vtkAppendPolyData object to combine the spheres into a single model
             self.appender = vtk.vtkAppendPolyData() if self.appender is None else self.appender
-            
-            for idx, sphere in enumerate(spheres):
+            self.spheres = [vtk.vtkSphereSource() for i in range(0, nb_spheres)]
+
+            # Iterate over the spheres and add each one to the appender
+            for idx, sphere in enumerate(self.spheres):
+                # Calculate the center and radius of the sphere using the getSphereCenterAndRadius method
                 center, radius = self.getSphereCenterAndRadius(self.markups, idx*2)
                 
+                # Set the center and radius of the sphere
                 sphere.SetCenter(center)
                 sphere.SetRadius(radius)
+
+                # Set the resolution of the sphere
                 sphere.SetPhiResolution(30)
                 sphere.SetThetaResolution(30)
                 sphere.Update()
+    
+                # Add the sphere to the appender
                 self.appender.AddInputConnection(sphere.GetOutputPort()) 
+    
+            # Update the appender and create a model from the appended polydata
             self.appender.Update()
             self.create_model(self.appender)
-
-    def updateSpheres(self, caller = None, event = None ):
-        self.remove_nodes_by_name("Annotations")
-
-        nb_spheres = self.markups.GetNumberOfControlPoints()//2
-        if nb_spheres >= 1:
-            self.spheres = [vtk.vtkSphereSource() for i in range(0, nb_spheres)]
-            self.appender = vtk.vtkAppendPolyData()
-            
-            for idx, sphere in enumerate(self.spheres):
-                center, radius = self.getSphereCenterAndRadius (self.markups, idx*2)
-
-                sphere.SetCenter(center)
-                sphere.SetRadius(radius)
-                sphere.SetPhiResolution(30)
-                sphere.SetThetaResolution(30)
-                sphere.Update()
-                self.appender.AddInputConnection(sphere.GetOutputPort()) 
-            self.appender.Update()
-
-            model = self.create_model(self.appender)
+    
+            # Set the color of the annotations.
+            self.set_annotations_color()
+            # Set the opacity of the annotations.
+            self.set_annotations_opacity()
             
     def MoveSpheres(self, caller = None, event = None):
+        # check if there are any spheres and appender available
         if self.spheres and self.appender:
+            # iterate over each sphere
             for idx, sphere in enumerate(self.spheres):
+                # get center and radius of the sphere
                 center, radius = self.getSphereCenterAndRadius(self.markups, idx*2)
+                # set new center and radius values
                 sphere.SetCenter(center)
                 sphere.SetRadius(radius)
                 sphere.Update()
+            # update the appender
             self.appender.Update()
+            # force render all the views
             slicer.util.forceRenderAllViews()
 
     def set_annotations_visibility(self):
+        # Get all nodes with the name "Annotations"
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
+        # Loop through each node and set its display visibility based on the state of the checkbox
         for node in nodes:
             node.GetDisplayNode().SetVisibility(self.ui.annotationsVisibility.checked)
 
@@ -204,38 +241,39 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         color = (self.ui.ColorPickerButton.color.red()/255, 
                  self.ui.ColorPickerButton.color.green()/255, 
                  self.ui.ColorPickerButton.color.blue()/255)
-        # update sphere color
+        # Get all nodes with the name "Annotations"
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
+        # Loop through each node and set its display color
         for node in nodes:
             node.GetDisplayNode().SetColor(color)
-
 
     def set_annotations_opacity(self):
         # update spheres opacity
         nodes = slicer.mrmlScene.GetNodesByName("Annotations")
+        # Loop through each node and set its display opacity
         for node in nodes:
             node.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/2)
 
     def create_model(self, model):
+        # Remove any existing annotation nodes
         self.remove_nodes_by_name("Annotations")
 
+        # Create a model node from the provided polydata
         modelNode = slicer.modules.models.logic().AddModel(model.GetOutput())
         modelNode.SetName("Annotations")
         modelNode.GetDisplayNode().SetVisibility2D(True)
         modelNode.GetDisplayNode().SetSliceIntersectionThickness(3)
         modelNode.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/2)
         
-        color = (self.ui.ColorPickerButton.color.red()/255, 
-                self.ui.ColorPickerButton.color.green()/255, 
-                self.ui.ColorPickerButton.color.blue()/255)
-        modelNode.GetDisplayNode().SetColor(color)
-
+        # Set the visibility of the spheres node in the scene
         self.ui.annotationsVisibility.checked = 1
         return modelNode
 
     def remove_nodes_by_type(self, node_type_name):
-        volumeNodes = slicer.util.getNodesByClass(node_type_name)
-        for node in volumeNodes:
+        # Get node by type
+        nodes = slicer.util.getNodesByClass(node_type_name)
+        # Loop and remove nodes
+        for node in nodes:
             slicer.mrmlScene.RemoveNode(node)
 
     ############################################ Volume ############################################
@@ -243,53 +281,77 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         dialog = qt.QFileDialog()
         dialog.setNameFilters(['Nifty (*.nii.gz *.nii)'])
 
+        # If the user selects a file and clicks OK, then proceed to load the volume
         if dialog.exec_() == qt.QDialog.Accepted:
+            # Get the file path of the selected file.
             file_path = dialog.selectedFiles()[0]
+            # Remove any existing volumes before loading a new one
             self.remove_existing_volumes()
+            # Load the volume into Slicer
             slicer.util.loadVolume(file_path)
 
+            # Get the volume node and create a default volume rendering if one does not already exist
             volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")[0]
-            # volume renderings view
+
+            # Volume renderings view (3D)
             volRenLogic = slicer.modules.volumerendering.logic()
             displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(volNode)
             if not displayNode: displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(volNode)
             volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
 
+            # Set the threshold values for the volume rendering
             min_val, max_val = volNode.GetImageData().GetScalarRange()
             self.ui.volumeThreshold.maximum = max_val
             self.ui.volumeThreshold.minimum = min_val
             self.ui.volumeThreshold.value = (max_val+min_val)/3
 
+            # Set the visibility of the volume to be on
             self.ui.vol_visibility.checked = 1
 
     def set_volume_visibility(self):
+        """
+        If there is at least one volume node in the scene, set the visibility
+        of the first volume node's display node
+        """
         volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
         if volNode:
-            volRenLogic = slicer.modules.volumerendering.logic()
-            displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(volNode[0])
+            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
+            # If a display node exists for the volume node, then set the visibility of the display node to match the checkbox value
             if displayNode:
                 displayNode.SetVisibility(self.ui.vol_visibility.checked)
 
     def remove_existing_volumes(self):
         self.remove_nodes_by_type("vtkMRMLScalarVolumeNode") # remove existing volume
-        self.remove_nodes_by_type("vtkMRMLMarkupsROINode") # remove existing volume
+        self.remove_nodes_by_type("vtkMRMLMarkupsROINode") # remove existing ROI
 
     def onVolumeOpacityChanged(self):
+        """
+        This function is called when the volume opacity slider is changed in the user interface.
+        """
+        # Get the first scalar volume node in the scene.
         volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
+        # Check if there is at least one scalar volume node in the scene.
         if volNode:
+            # Get the volume rendering display node of the first scalar volume node.
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
+            
+            # Get the scalar opacity transfer function of the volume property node.
             scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
+
+            # Get the current opacity value for the second control point of the scalar opacity transfer function.
+            # The second control point is the midpoint of the transfer function.    
             p = [0]*4
             scalarOpacity.GetNodeValue(1, p)
+
+            # Update the opacity value for the second control point with the new value from the slider in the user interface.
             p[1] = self.ui.volumeOpacity.value
             scalarOpacity.SetNodeValue(1, p)
 
     def cleanup(self):
+        # Clear the MRML scene, deleting all nodes and references.
         slicer.mrmlScene.Clear(0)
+        # Remove any observers registered by this module instance.
         self.removeObservers()
-
-    def enter(self):
-        self.initializeParameterNode()
 
     def exit(self):
         return
@@ -298,7 +360,4 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return
 
     def onSceneEndClose(self, caller, event):
-        return
-
-    def initializeParameterNode(self):
         return
