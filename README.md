@@ -45,8 +45,7 @@ The Slicer Aneurysm Annotation Module includes the following features:
 
 
 ## Contact
-If you have any questions or feedback about this module, please contact me:
-- Youssef Assis (youssef.assis@loria.fr)
+If you have any questions or feedback about this module, please contact me by email (youssef.assis@loria.fr).
 
 ## License
 For open source projects, say how it is licensed.
