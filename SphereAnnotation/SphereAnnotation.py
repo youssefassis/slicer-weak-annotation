@@ -110,11 +110,11 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         the spheres according to the event.
         """
         slicer.modules.markups.logic().StartPlaceMode(0)
-        markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
-        if markups:
-            markups[-1].AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
-            markups[-1].AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
-            markups[-1].AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
+        fiducial_nodes = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+        for fiducial_node in fiducial_nodes:
+            fiducial_node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres)
+            fiducial_node.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres)
+            fiducial_node.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres)
 
     def remove_point(self):
         """
@@ -124,7 +124,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for markup in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             if markup.GetNumberOfControlPoints() > 0:
                 markup.RemoveNthControlPoint(markup.GetNumberOfControlPoints() - 1)
-
 
     def remove_nodes_by_name(self, name):
         # Get a list of all nodes in the Slicer scene with the specified name.
@@ -149,15 +148,16 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 slicer.util.errorDisplay('Error when loading the Fidicual file.')
                 return
 
-            markup = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[-1]
-            markup.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
-            markup.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
-            markup.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
+            fiducial_nodes = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+            for fiducial_node in fiducial_nodes:
+                fiducial_node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres)
+                fiducial_node.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres)
+                fiducial_node.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres)
 
             # Draw spheres at the locations of the points.
             self.draw_spheres()
     
-    def draw_spheres(self, caller = None, event = None ):
+    def draw_spheres(self, caller=None, event=None):
         # Remove any existing annotation nodes
         self.remove_nodes_by_name("Annotations")
         self.spheres, self.appender = [], None
@@ -196,25 +196,28 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.set_annotations_color()
         # Set the opacity of the annotations.
         self.set_annotations_opacity()
-            
-    def MoveSpheres(self, caller = None, event = None):
-        # check if there are any spheres and appender available
-        # points_per_markup = [m.GetNumberOfControlPoints()//2 for m in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")]
-        
-        # Iterate over each sphere and update its position
-        for idx, sphere in enumerate(self.spheres):
-            markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[-1]
-            # Get center and radius of the sphere
-            center, radius = self.getSphereCenterAndRadius(markups, idx*2)
-            # set new center and radius values
-            sphere.SetCenter(center)
-            sphere.SetRadius(radius)
-            sphere.Update()
 
-            # Update the appender
-            self.appender.Update()
-            # Force render all the views
-            slicer.util.forceRenderAllViews()
+    def MoveSpheres(self, caller=None, event=None):
+        sphere_idx = 0
+        markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+        for markup in markups:
+            # Iterate over the spheres and update the position of each one
+            for idx in range(markup.GetNumberOfControlPoints()//2):
+                if sphere_idx >= len(self.spheres) : return
+                sphere = self.spheres[sphere_idx]
+                center, radius = self.getSphereCenterAndRadius(markup, idx*2)
+                
+                # Set the center of the sphere to the new position
+                sphere.SetCenter(center)
+                sphere.SetRadius(radius)
+                sphere.Update()
+
+                # Update the appender
+                self.appender.Update()
+                # Force render all the views
+                slicer.util.forceRenderAllViews()
+                sphere_idx += 1
+
 
     def getSphereCenterAndRadius(self, markups, startPointIndex):
         # Create two empty numpy arrays of size 3 to hold the positions of the two points.
@@ -349,4 +352,3 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.mrmlScene.Clear(0)
         # Remove any observers registered by this module instance.
         self.removeObservers()
-
