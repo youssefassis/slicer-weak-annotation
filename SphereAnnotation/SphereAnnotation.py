@@ -24,7 +24,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
 
         slicer.app.pythonConsole().clear()
-        self.cleanButton()
+        self.clearButton()
 
     def setup(self):
         """
@@ -57,8 +57,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.saveButton.connect('clicked(bool)', self.saveButton)
         self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
 
-        self.markups = None
-        self.spheres = None
+        self.spheres = []
         self.appender = None
 
     def onVolumeThresholdChanged(self, value):
@@ -108,40 +107,24 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         Create a new point in the 3D Slicer scene. The function then adds three observer methods to
         the markups attribute, which listen for changes to the point in the Slicer scene and update
-        the spheres according to the point position.
+        the spheres according to the event.
         """
         slicer.modules.markups.logic().StartPlaceMode(0)
-        if self.markups is None and slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
-            self.markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[0]
-            
-            self.markups.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
-            self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
-
-            self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
+        markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+        if markups:
+            markups[-1].AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
+            markups[-1].AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
+            markups[-1].AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
 
     def remove_point(self):
         """
-        The purpose of this function is to remove the last created point from a vtkMRMLMarkupsFiducialNode
-        in a 3D Slicer scene.
+        The purpose of this function is to remove the last created point from a 
+        vtkMRMLMarkupsFiducialNode in a 3D Slicer scene.
         """
-        markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
-        for markup in markups:
+        for markup in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             if markup.GetNumberOfControlPoints() > 0:
                 markup.RemoveNthControlPoint(markup.GetNumberOfControlPoints() - 1)
 
-    def getSphereCenterAndRadius(self, markup, startPointIndex):
-        # Create two empty numpy arrays of size 3 to hold the positions of the two points.
-        A, B = np.zeros(3), np.zeros(3)
-        # Get the position of the nth control point (startPointIndex) and store it in A.
-        markup.GetNthControlPointPosition(startPointIndex, A)
-        # Get the position of the (n+1)th control point and store it in B.
-        markup.GetNthControlPointPosition(startPointIndex+1, B)
-        # Calculate the midpoint between the two points.
-        s = (A + B) / 2
-        # Calculate the radius of the sphere using the distance between the two points.
-        R = np.linalg.norm(A - B)/2
-        # Return the center and radius of the sphere as a tuple.
-        return s, R
 
     def remove_nodes_by_name(self, name):
         # Get a list of all nodes in the Slicer scene with the specified name.
@@ -161,37 +144,34 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             try:
                 # Load the markups from the specified file and add them to the Slicer scene.
                 slicer.util.loadMarkupsFiducialList(file_path)
-                # Get a reference to the newly added points node.
-                self.markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[0]
-
-                # Add event observers to the markups fiducial node.
-                self.markups.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
-                self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
-
-                self.markups.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
             except:
                 # Display an error message if there was an error loading the file.
                 slicer.util.errorDisplay('Error when loading the Fidicual file.')
+                return
+
+            markup = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[-1]
+            markup.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres, 2)
+            markup.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.draw_spheres, 2)
+            markup.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
 
             # Draw spheres at the locations of the points.
             self.draw_spheres()
     
     def draw_spheres(self, caller = None, event = None ):
-        self.spheres, self.appender = None, None
+        # Remove any existing annotation nodes
+        self.remove_nodes_by_name("Annotations")
+        self.spheres, self.appender = [], None
 
-        # Calculate the number of spheres to be drawn based on the number of control points in the markups fiducial node
-        nb_spheres = self.markups.GetNumberOfControlPoints()//2
-    
-        # If there are spheres to draw
-        if nb_spheres > 0:            
-            # Create a vtkAppendPolyData object to combine the spheres into a single model
-            self.appender = vtk.vtkAppendPolyData() if self.appender is None else self.appender
-            self.spheres = [vtk.vtkSphereSource() for i in range(0, nb_spheres)]
+        # Create a vtkAppendPolyData object to combine the spheres into a single model
+        self.appender = vtk.vtkAppendPolyData() if self.appender is None else self.appender
 
+        markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+        for markup in markups:
             # Iterate over the spheres and add each one to the appender
-            for idx, sphere in enumerate(self.spheres):
+            for idx in range(markup.GetNumberOfControlPoints()//2):
+                sphere = vtk.vtkSphereSource()
                 # Calculate the center and radius of the sphere using the getSphereCenterAndRadius method
-                center, radius = self.getSphereCenterAndRadius(self.markups, idx*2)
+                center, radius = self.getSphereCenterAndRadius(markup, idx*2)
                 
                 # Set the center and radius of the sphere
                 sphere.SetCenter(center)
@@ -201,34 +181,54 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 sphere.SetPhiResolution(30)
                 sphere.SetThetaResolution(30)
                 sphere.Update()
-    
+                
+                self.spheres.append(sphere)
                 # Add the sphere to the appender
                 self.appender.AddInputConnection(sphere.GetOutputPort()) 
     
-            # Update the appender and create a model from the appended polydata
-            self.appender.Update()
-            self.create_model(self.appender)
-    
-            # Set the color of the annotations.
-            self.set_annotations_color()
-            # Set the opacity of the annotations.
-            self.set_annotations_opacity()
+                # Update the appender
+                self.appender.Update()
+
+        # Create a model from the appended polydata
+        self.create_model(self.appender)
+
+        # Set the color of the annotations.
+        self.set_annotations_color()
+        # Set the opacity of the annotations.
+        self.set_annotations_opacity()
             
     def MoveSpheres(self, caller = None, event = None):
         # check if there are any spheres and appender available
-        if self.spheres and self.appender:
-            # iterate over each sphere
-            for idx, sphere in enumerate(self.spheres):
-                # get center and radius of the sphere
-                center, radius = self.getSphereCenterAndRadius(self.markups, idx*2)
-                # set new center and radius values
-                sphere.SetCenter(center)
-                sphere.SetRadius(radius)
-                sphere.Update()
-            # update the appender
+        # points_per_markup = [m.GetNumberOfControlPoints()//2 for m in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")]
+        
+        # Iterate over each sphere and update its position
+        for idx, sphere in enumerate(self.spheres):
+            markups = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")[-1]
+            # Get center and radius of the sphere
+            center, radius = self.getSphereCenterAndRadius(markups, idx*2)
+            # set new center and radius values
+            sphere.SetCenter(center)
+            sphere.SetRadius(radius)
+            sphere.Update()
+
+            # Update the appender
             self.appender.Update()
-            # force render all the views
+            # Force render all the views
             slicer.util.forceRenderAllViews()
+
+    def getSphereCenterAndRadius(self, markups, startPointIndex):
+        # Create two empty numpy arrays of size 3 to hold the positions of the two points.
+        A, B = np.zeros(3), np.zeros(3)
+        # Get the position of the nth control point (startPointIndex) and store it in A.
+        markups.GetNthControlPointPosition(startPointIndex, A)
+        # Get the position of the (n+1)th control point and store it in B.
+        markups.GetNthControlPointPosition(startPointIndex+1, B)
+        # Calculate the midpoint between the two points.
+        s = (A + B) / 2
+        # Calculate the radius of the sphere using the distance between the two points.
+        R = np.linalg.norm(A - B)/2
+        # Return the center and radius of the sphere as a tuple.
+        return s, R
 
     def set_annotations_visibility(self):
         # Get all nodes with the name "Annotations"
@@ -255,9 +255,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             node.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value/2)
 
     def create_model(self, model):
-        # Remove any existing annotation nodes
-        self.remove_nodes_by_name("Annotations")
-
         # Create a model node from the provided polydata
         modelNode = slicer.modules.models.logic().AddModel(model.GetOutput())
         modelNode.SetName("Annotations")
@@ -353,11 +350,3 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Remove any observers registered by this module instance.
         self.removeObservers()
 
-    def exit(self):
-        return
-
-    def onSceneStartClose(self, caller, event):
-        return
-
-    def onSceneEndClose(self, caller, event):
-        return
