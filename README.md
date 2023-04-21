@@ -43,9 +43,19 @@ The Slicer Aneurysm Annotation Module includes the following features:
 - Ability to save and load annotations for later use.
 - Ability to compare multiple annotations at the same time.
 
+## Citation
+If you find this repository useful for your work, please consider citing our paper: 
+```
+[Assis et al. 2023] - Aneurysm Pose Estimation with Deep Learning. MICCAI 2023.
+```
 
 ## Contact
 If you have any questions or feedback about this module, please contact me by email (youssef.assis@loria.fr).
 
 ## License
-For open source projects, say how it is licensed.
+This project is licensed under the MIT License. This license allows for free use, modification, and distribution of the code, as long as the original license and copyright notice are included in any copies or derivatives.
+
+For more information, see the [LICENSE](LICENSE.md) file.
+
+
+
