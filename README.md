@@ -33,7 +33,7 @@ To use the Aneurysm Annotation module, follow these steps:
 - Load, create, or delete the points that define the spheres.
 - The spheres will automatically be drawn in the 3D view. Each pair of points defines a sphere. The size and position of the spheres can be easily adjusted by modifying the position of the points.
 - Adjust the size, position, and color of the sphere as needed.
-- After annotating, save the annotation using the "Save" button.
+- After annotating, save the annotation using the "Save" button. The annotaions (i.e. fiducial points) can be saved as FCSV file.
 - To load a previously saved annotation, click the "Load" button and select the annotation file.
 
 ## Features
