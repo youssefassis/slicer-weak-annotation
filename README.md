@@ -46,7 +46,7 @@ The Slicer Aneurysm Annotation Module includes the following features:
 ## Citation
 If you find this repository useful for your work, please consider citing our paper: 
 ```
-[Assis et al. 2023] - Aneurysm Pose Estimation with Deep Learning. MICCAI 2023.
+[Assis et al. 2023] - .
 ```
 
 ## Contact
