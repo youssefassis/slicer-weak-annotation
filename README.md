@@ -1,18 +1,17 @@
-# Slicer Aneurysm Annotation Module
-The Slicer Aneurysm Annotation Module is a software tool that simplifies the process of annotating aneurysms using spheres in 3D. This module provides an intuitive interface that makes it easy for users to annotate aneurysms and save their annotations for later use.
+# Aneurysm Annotation Module
+The Aneurysm Annotation Module is a Slicer 3D extension that simplifies the process of annotating aneurysms (or any ball-shaped objects) using spheres in a 3D view. This module provides an intuitive interface that makes it easy for users to annotate aneurysms and save their annotations as Fcsv file.
 
 # Main Module View
-<img src="Images/sample.gif" alt="Main module view">
+<img width=100% src="Images/sample.gif" alt="Main module view">
 
 # Getting Started
 ## Prerequisites
 -  [3D Slicer](https://www.makeareadme.com/) version 4.11 or later
--  Annotation Module
 
 ## Installation
-To use the  Annotation module, you will need to have 3D Slicer version 4.11 or later installed on your machine. You can download the latest version of 3D Slicer from the [official website](https://download.slicer.org/).
+To use this  Annotation module, you will need to have 3D Slicer version 4.11 or later installed on your machine. You can download the latest version of 3D Slicer from the [official website](https://download.slicer.org/).
 
-To install the Aneurysm Annotation module, follow these steps:
+To install this Aneurysm Annotation module, follow these steps:
 
 
 1. Download the module from the official repository:
@@ -30,8 +29,8 @@ To use the Aneurysm Annotation module, follow these steps:
 
 - Open the Aneurysm Annotation module from the Extension Manager (under the "View" menu) by searching for "Aneurysm Annotation".
 - Load the volume into Slicer. The volume will automatically appear in the 3D view. You can adjust its visibility, thresholding, and opacity.
-- Load, create, or delete the points that define the spheres.
-- The spheres will automatically be drawn in the 3D view. Each pair of points defines a sphere. The size and position of the spheres can be easily adjusted by modifying the position of the points.
+- Load, create, or delete the points/markups (F1, F2, etc.) that define the spheres.
+- The spheres will automatically be drawn in the 3D view. Each pair of points defines a sphere. The size and position of the spheres can be easily adjusted by modifying the position of the points from the 3D view ou from the 2D canonical cut planes.
 - Adjust the size, position, and color of the sphere as needed.
 - After annotating, save the annotation using the "Save" button. The annotaions (i.e. fiducial points) can be saved as FCSV file.
 - To load a previously saved annotation, click the "Load" button and select the annotation file.
@@ -46,7 +45,8 @@ The Slicer Aneurysm Annotation Module includes the following features:
 ## Citation
 If you find this repository useful for your work, please consider citing our paper: 
 ```
-[Assis et al. 2023] - .
+Assis et al. Aneurysm Pose Estimation with Deep Learning, In: International Conference on Medical Image Computing and Computer-Assisted Intervention, Springer (2023)
+
 ```
 
 ## Contact
