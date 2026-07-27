@@ -38,9 +38,26 @@ class TestDefaultThreshold:
     def test_a_fresh_volume_starts_a_third_of_the_way_up(self):
         assert rendering.default_threshold(0, 300) == pytest.approx(100)
 
+    def test_it_is_a_third_of_the_range_and_not_of_the_sum(self):
+        # `(min + max) / 3` agrees with a third of the way up only when min is 0, which is
+        # why the zero-based case above passed while every other volume drifted.
+        assert rendering.default_threshold(100, 200) == pytest.approx(133 + 1 / 3)
+        assert rendering.default_threshold(-1024, 3071) == pytest.approx(341)
+
+    def test_a_range_that_sits_high_still_starts_inside_it(self):
+        # The case that reached the slider as an out-of-range value and was clamped to the
+        # bottom, opening the volume fully opaque.
+        assert rendering.default_threshold(2000, 3000) == pytest.approx(2333 + 1 / 3)
+
     def test_it_stays_inside_the_range(self):
-        for low, high in [(0, 1), (-1000, 3000), (100, 200)]:
+        for low, high in [(0, 1), (-1000, 3000), (100, 200), (2000, 3000), (-2000, -100)]:
             assert low <= rendering.default_threshold(low, high) <= high
+
+    def test_it_is_strictly_inside_a_range_with_room_in_it(self):
+        # `low <= threshold` alone passes for a threshold pinned to the bottom of the range,
+        # which is the failure it is meant to catch.
+        for low, high in [(0, 1), (100, 200), (2000, 3000)]:
+            assert low < rendering.default_threshold(low, high) < high
 
 
 class TestScalarOpacityPoints:

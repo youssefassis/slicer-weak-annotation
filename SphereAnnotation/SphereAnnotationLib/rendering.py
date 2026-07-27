@@ -53,8 +53,13 @@ def default_threshold(min_value, max_value):
 
     A third of the way up the range is low enough that the vessels are visible without any
     fiddling, which is what the annotator needs before they can place a single point.
+
+    A third of the way up *the volume's own range*, which ``(min + max) / 3`` only is for a
+    volume whose minimum is zero. Anywhere else it drifts, and for a range that sits high it
+    leaves the range altogether: a (2000, 3000) volume used to open at 1666, off the bottom
+    of its own slider, so the whole volume rendered opaque.
     """
-    return (min_value + max_value) / 3
+    return min_value + (max_value - min_value) / 3
 
 
 def _clamp(value, low, high):
