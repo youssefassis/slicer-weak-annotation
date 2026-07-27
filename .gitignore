@@ -1,0 +1,16 @@
+__pycache__/
+
+# The JUnit report both CI files ask pytest for; also lands here when the CI command is
+# reproduced locally.
+report.xml
+
+# Tool caches from the fast loop.
+.pytest_cache/
+.ruff_cache/
+
+# Annotations saved while trying the module out. The module writes FCSV beside whatever
+# volume is open, so a trial run would otherwise show up as a change to the repository.
+*.fcsv
+
+# Finder metadata, which appears in any directory an annotator browses to.
+.DS_Store

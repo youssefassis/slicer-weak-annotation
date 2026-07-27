@@ -2,8 +2,16 @@
 set(MODULE_NAME SphereAnnotation)
 
 #-----------------------------------------------------------------------------
+# SphereAnnotationLib is installed next to the module. Slicer puts the scripted-modules
+# directory on sys.path, so `from SphereAnnotationLib import spheres` resolves at runtime.
+# ADD NEW LIBRARY MODULES HERE — a file that is not listed still works from
+# --additional-module-paths during development and is then missing from the packaged
+# extension, which is a nasty way to find out.
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
+  SphereAnnotationLib/__init__.py
+  SphereAnnotationLib/rendering.py
+  SphereAnnotationLib/spheres.py
   )
 
 set(MODULE_PYTHON_RESOURCES
