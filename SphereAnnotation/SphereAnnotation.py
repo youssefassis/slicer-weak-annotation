@@ -394,17 +394,11 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     ############################################ Volume ############################################
 
     def load_volume(self):
-        """Load a volume and set up its 3D rendering.
-
-        The volume this module loaded previously is removed to make room; anything else in
-        the scene is left alone. The previous version removed *every* scalar volume and every
-        ROI node — including the crop ROI belonging to whatever else the annotator had open.
-        """
+        """Load a volume from a file the annotator picks, and show it."""
         path = self.promptForFile("Load volume", VOLUME_FILE_FILTER)
         if path is None:
             return
 
-        previous = self.currentVolumeNode()
         try:
             # loadVolume hands the name straight to Qt, which cannot convert a Path.
             volNode = slicer.util.loadVolume(str(path))
@@ -413,6 +407,16 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.util.errorDisplay(f"Could not load the volume.\n\n{path.name}\n\n{error}")
             return
 
+        self.adoptVolumeNode(volNode)
+
+    def adoptVolumeNode(self, volNode):
+        """Take ownership of ``volNode``, set up its 3D rendering, and show it.
+
+        The volume this module loaded previously is removed to make room; anything else in
+        the scene is left alone. The previous version removed *every* scalar volume and every
+        ROI node — including the crop ROI belonging to whatever else the annotator had open.
+        """
+        previous = self.currentVolumeNode()
         if previous is not None:
             slicer.mrmlScene.RemoveNode(previous)
         self.volNode = volNode
@@ -424,11 +428,22 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
 
         min_value, max_value = volNode.GetImageData().GetScalarRange()
-        self.ui.volumeThreshold.minimum = min_value
-        self.ui.volumeThreshold.maximum = max_value
-        # Assigning `.value` emits valueChanged, which applies the ramp for us.
+        # In one call: setting `minimum` and then `maximum` passes through a min > max state
+        # whenever the new volume's range sits above the old one, and Qt resolves that by
+        # putting the value somewhere neither of them asked for.
+        self.ui.volumeThreshold.setRange(min_value, max_value)
         self.ui.volumeThreshold.value = rendering.default_threshold(min_value, max_value)
         self.ui.vol_visibility.checked = True
+
+        # Applied here rather than left to the two assignments above, which only emit when
+        # the value actually *changes*. A second volume with the same scalar range as the
+        # first — the same protocol, the next patient — changes neither: the slider already
+        # sits at that threshold, and the box has been ticked since the first load. The new
+        # display node would then keep the defaults it was created with, which for a volume
+        # rendering display node means invisible, and the module would look like it had
+        # silently failed to open the file.
+        self.applyOpacityRamp()
+        self.set_volume_visibility()
 
     def volumeRenderingDisplayNode(self):
         """The rendering display node for the volume this module loaded, or ``None``.
@@ -510,6 +525,8 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.test_clean_removes_only_this_modules_nodes()
         self.setUp()
         self.test_closing_the_scene_leaves_no_stale_references()
+        self.setUp()
+        self.test_a_second_volume_is_shown_like_the_first()
 
     def widget(self):
         slicer.util.selectModule("SphereAnnotation")
@@ -518,6 +535,25 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
     def placePoints(self, node, *positions):
         for position in positions:
             node.AddControlPoint(vtk.vtkVector3d(*position))
+
+    def syntheticVolume(self, name):
+        """A tiny volume with a scalar range of exactly (0, 1000).
+
+        Two of these are indistinguishable to the threshold slider, which is the whole point:
+        it is the volume whose default threshold matches the one already on the slider that
+        exposes a control relying on a Qt signal it will not get.
+        """
+        volNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", name)
+        image = vtk.vtkImageData()
+        image.SetDimensions(4, 4, 4)
+        image.AllocateScalars(vtk.VTK_SHORT, 1)
+        volNode.SetAndObserveImageData(image)
+        array = slicer.util.arrayFromVolume(volNode)
+        array[:] = 0
+        array[2:, 2:, 2:] = 1000
+        slicer.util.arrayFromVolumeModified(volNode)
+        volNode.CreateDefaultDisplayNodes()
+        return volNode
 
     def test_opening_the_module_leaves_the_rest_of_the_scene_alone(self):
         """The regression that matters most: the module used to clear the scene on open."""
@@ -608,3 +644,25 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.modelNode)
         self.assertEqual(widget.pointsNodes, [])
         self.assertEqual(widget.spheres, [])
+
+    def test_a_second_volume_is_shown_like_the_first(self):
+        """Neither the rendering nor the ramp may depend on a widget value happening to change.
+
+        The second volume here has the same scalar range as the first, so the threshold
+        slider keeps its value and the visibility box stays ticked — and the two Qt signals
+        the module used to rely on never fire. It loaded, and it was invisible.
+        """
+        self.delayDisplay("A second volume is shown like the first")
+        widget = self.widget()
+
+        widget.adoptVolumeNode(self.syntheticVolume("First"))
+        self.assertTrue(widget.volumeRenderingDisplayNode().GetVisibility())
+
+        widget.adoptVolumeNode(self.syntheticVolume("Second"))
+        displayNode = widget.volumeRenderingDisplayNode()
+        self.assertIsNotNone(displayNode)
+        self.assertTrue(displayNode.GetVisibility())
+
+        # And the ramp is this module's, not whatever the display node was created with.
+        scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
+        self.assertEqual(scalarOpacity.GetSize(), rendering.SCALAR_OPACITY_POINT_COUNT)
