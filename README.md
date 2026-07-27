@@ -1,63 +1,89 @@
-# Aneurysm Annotation Module
-The Aneurysm Annotation Module is a Slicer 3D extension that simplifies the process of annotating aneurysms (or any ball-shaped objects) using spheres in a 3D view. This module provides an intuitive interface that makes it easy for users to annotate aneurysms and save their annotations as Fcsv file.
+# Sphere Annotation
 
-# Main Module View
-<img width=100% src="Images/sample.gif" alt="Main module view">
+> Part of the original Inria GitLab project at
+> [gitlab.inria.fr/yassis/slicer-sphere-annotation](https://gitlab.inria.fr/yassis/slicer-sphere-annotation),
+> developed at the [Loria](https://www.loria.fr/) lab.
 
-# Getting Started
-## Prerequisites
--  [3D Slicer](https://download.slicer.org/) version 4.11 or later
+A [3D Slicer](https://www.slicer.org/) extension for annotating intracranial aneurysms — or
+any ball-shaped object — with spheres.
 
-> The module is developed and tested against **Slicer 5.12.3**, and now calls Slicer 5 API
-> (`slicer.util.loadMarkups`, `SetVisibility2D`), so the 4.11 floor above is almost certainly
-> no longer accurate. Which version the project commits to supporting is listed as an open
-> decision in [`docs/development.md`](docs/development.md).
+**You place two points; you get a sphere.** The two points sit at opposite ends of a
+diameter, so the sphere appears between them and follows either one as you drag it. That is
+the whole interaction, and the whole file format. It gives you a weak label — a location and
+a size — in a couple of clicks, without segmenting anything.
 
-## Installation
-To use this  Annotation module, you will need to have 3D Slicer version 4.11 or later installed on your machine. You can download the latest version of 3D Slicer from the [official website](https://download.slicer.org/).
+<img width=100% src="docs/sample.gif" alt="Placing and adjusting a sphere in the 3D view">
 
-To install this Aneurysm Annotation module, follow these steps:
+## Requirements
 
+**3D Slicer 5.** Developed and tested against
+[5.12.3](https://download.slicer.org/); other 5.x releases will very likely work. Slicer 4
+will not — the module uses Slicer 5's markups API.
 
-1. Download the module from the official repository:
-    ```
-    git clone https://gitlab.inria.fr/yassis/slicer-sphere-annotation.git
-    ```
-2. Open 3D Slicer.
-3. Go to the Application Settings (in the "Edit" menu).
-4. Go to the "Module" tab.
-5. Add the module path in the "Additional module paths".
-6. Press OK. Slicer will need to be restarted.
+Nothing else to install: Slicer supplies numpy, VTK and Qt, and the module drives only
+modules that ship with Slicer.
 
-## Usage
-To use the Aneurysm Annotation module, follow these steps:
+## Install
 
-- Open the Aneurysm Annotation module from the Extension Manager (under the "View" menu) by searching for "Aneurysm Annotation".
-- Load the volume into Slicer. The volume will automatically appear in the 3D view. You can adjust its visibility, thresholding, and opacity.
-- Load, create, or delete the points/markups (F1, F2, etc.) that define the spheres.
-- The spheres will automatically be drawn in the 3D view. Each pair of points defines a sphere. The size and position of the spheres can be easily adjusted by modifying the position of the points from the 3D view ou from the 2D canonical cut planes.
-- Adjust the size, position, and color of the sphere as needed.
-- After annotating, save the annotation using the "Save" button. The annotaions (i.e. fiducial points) can be saved as FCSV file.
-- To load a previously saved annotation, click the "Load" button and select the annotation file.
+```bash
+git clone https://github.com/youssefassis/slicer-weak-annotation.git
+```
 
-## Features
-The Slicer Aneurysm Annotation Module includes the following features:
-- Intuitive user interface for easy annotation of aneurysms.
-- Ability to adjust the size, position, and color of spheres to highlight the location of the aneurysm.
-- Ability to save and load annotations for later use.
-- Ability to compare multiple annotations at the same time.
+Then either point Slicer at it for one session:
+
+```bash
+# macOS; adjust for your install
+/Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths slicer-weak-annotation/SphereAnnotation
+```
+
+…or add it permanently: *Edit → Application Settings → Modules*, drag the inner
+`SphereAnnotation/` directory (the one containing `SphereAnnotation.py`) into **Additional
+module paths**, and restart Slicer.
+
+Either way the module then appears in the module list as **Sphere Annotation**, under
+*Aneurysms*.
+
+## Your first annotation
+
+1. **Volume → Load.** Pick a `.nii` or `.nii.gz` angiogram. It appears in the 3D view.
+2. Drag **Threshold** until the vessels stand out. This is the one control worth playing
+   with — it is what turns the volume into a vessel tree you can aim at.
+3. **Annotations → Create**, then click one edge of the aneurysm.
+4. **Create** again, then click the opposite edge. *The sphere appears.*
+5. Nudge either point — in the 3D view or in any 2D slice view — until the sphere covers the
+   aneurysm. It resizes as you drag.
+6. **Save** when you are done, and pick a location. Your annotation is the markups node.
+
+Repeat steps 3–5 for each aneurysm. Every pair of points is a new sphere.
+
+> Nothing is drawn after step 3, and that is correct: one point does not define a sphere. If a
+> sphere you expected is missing, an odd number of points is the first thing to check.
+
+The [user guide](docs/user-guide.md) covers every control, and the parts that surprise people.
+
+## What you can do with it
+
+- Annotate any number of aneurysms in one volume, each with two clicks.
+- Adjust position and size by dragging points in the 3D view or on the 2D slices.
+- Set the colour and opacity of the spheres, and hide them without deleting them.
+- **Load two annotations at once** and compare them side by side — a second **Load** adds to
+  the scene rather than replacing what is there.
+- Save to Slicer's standard markups formats (`.mrk.json`, or legacy `.fcsv`), which any
+  Slicer install and [any script](docs/annotation-format.md#reading-an-annotation-elsewhere)
+  can read back.
+
+Opening this module leaves whatever you already had loaded alone, and so does **Clean**.
 
 ## Documentation
 
-Everything is under [`docs/`](docs/README.md), which starts with an orientation page and the
-constraints worth knowing before changing anything.
+Everything lives in [`docs/`](docs/README.md). Start there, or jump straight to:
 
 | | |
 | --- | --- |
-| [user guide](docs/user-guide.md) | what every control does, in the annotator's terms |
+| [user guide](docs/user-guide.md) | every control, in the annotator's terms |
 | [annotation format](docs/annotation-format.md) | the point-pairing contract — read this if you consume the files |
 | [architecture](docs/architecture.md) | how the code is split, node ownership, the sphere maths |
-| [development](docs/development.md) | the two Python environments, test loop, open decisions |
+| [development](docs/development.md) | the two Python environments, the test loop, open decisions |
 
 ## Develop
 
@@ -71,21 +97,17 @@ ruff check .         # lint, and the import boundary above
 ```
 
 Both checks run on every push, on GitHub and GitLab alike. Anything touching widgets or MRML
-nodes needs Slicer — see [`docs/development.md`](docs/development.md).
+nodes needs Slicer — see [development](docs/development.md).
 
 ## Citation
-If you find this repository useful for your work, please consider citing our paper: 
-```
-Assis et al. Aneurysm Pose Estimation with Deep Learning, In: International Conference on Medical Image Computing and Computer-Assisted Intervention, Springer (2023)
+
+If you find this repository useful for your work, please consider citing our paper:
 
 ```
-
-## Contact
-If you have any questions or feedback about this module, please contact me by email (youssef.assis@loria.fr).
+Assis et al. Aneurysm Pose Estimation with Deep Learning. In: International Conference on
+Medical Image Computing and Computer-Assisted Intervention (MICCAI), Springer, 2023.
+```
 
 ## License
 
 Licensed under [Apache 2.0](LICENSE).
-
-
-

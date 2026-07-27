@@ -171,13 +171,19 @@ working on the code.
 - **The extension metadata** in the top-level `CMakeLists.txt`, which still carries the
   wizard's `John Doe (AnyWare Corp.)` contributor, `example.com` URLs and "This is an example
   of a simple extension" as its description.
-- **The extension name.** The top-level project is `AneurysmAnnotation`, the module is
-  `SphereAnnotation`, and the README calls it "Aneurysm Annotation Module". Pick one.
-- **The supported Slicer version.** Developed against 5.12.3; the README claims 4.11+, which
-  the code no longer supports. Confirm what the lab reviews with, then pin it in CI and say so
-  in the README.
-- **The copyright holder.** `LICENSE.md` says "Assis Youssef" and the source headers say
-  "the SphereAnnotation authors". Loria is a joint unit, so the holder may need to be Inria,
-  CNRS and/or Université de Lorraine — confirm with the lab, then set it consistently.
-- **A real screenshot for the extension.** `AneurysmAnnotation.png` is still the extension
-  wizard's placeholder icon, not a picture of the module.
+- **The extension name**, which is currently four different things: the GitHub repository is
+  `slicer-weak-annotation`, the GitLab one `slicer-sphere-annotation`, the top-level CMake
+  project `AneurysmAnnotation`, and the module `SphereAnnotation`. The README and the docs use
+  the module's name because that is what a user sees in Slicer. Pick one and rename the rest —
+  note that renaming the module means renaming its file, its class, its directory and its
+  `.ui` file together, since Slicer requires them to match.
+- **The supported Slicer version.** Developed against 5.12.3. The README now says "Slicer 5"
+  rather than the old, untrue "4.11 or later", but that is a description of what is tested,
+  not a commitment. Confirm what the lab reviews with, then pin it in CI and say so.
+- **The copyright holder.** `LICENSE`'s appendix is unfilled and the source headers say "the
+  SphereAnnotation authors"; the MIT licence this replaced named "Assis Youssef". Loria is a
+  joint unit, so the holder may need to be Inria, CNRS and/or Université de Lorraine — confirm
+  with the lab, then set it consistently across the headers.
+- **A real icon for the extension.** `docs/extension-icon.png` is still the extension
+  wizard's placeholder, not a picture of the module. `docs/module-panel.jpg` is a real
+  screenshot and could be the basis for one.

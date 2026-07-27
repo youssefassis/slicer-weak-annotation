@@ -1,22 +1,26 @@
 # Documentation
 
-Start here. This page orients you; the four pages below are the source of truth for their
-areas. **Read the relevant one before working in that area** rather than relying on the
-summary here.
+**Sphere Annotation** is a 3D Slicer scripted module (shown as **Sphere Annotation**, under
+*Aneurysms*). It annotates aneurysms — or any ball-shaped object — with spheres: you place
+**two points per sphere**, at opposite ends of a diameter, and the sphere follows either point
+as you drag it.
 
-| | |
+## Where to start
+
+| if you want to… | read |
 | --- | --- |
-| [`user-guide.md`](user-guide.md) | what each control does, in the annotator's terms |
-| [`annotation-format.md`](annotation-format.md) | the point-pairing contract — read before touching I/O |
-| [`architecture.md`](architecture.md) | how the code is split, node ownership, the two update paths |
-| [`development.md`](development.md) | the two Python environments, test/lint loop, conventions, open decisions |
+| annotate a volume | [user-guide.md](user-guide.md) |
+| read or generate annotation files | [annotation-format.md](annotation-format.md) |
+| change the code | [architecture.md](architecture.md), then the rest of this page |
+| set up a dev environment, run the tests | [development.md](development.md) |
+| see what changed | [../CHANGELOG.md](../CHANGELOG.md) |
 
-## What this is
+The four pages are the source of truth for their areas. Read the relevant one before working
+in that area rather than relying on the summary here.
 
-A 3D Slicer extension with one scripted (Python) loadable module, `SphereAnnotation` (shown as
-**Sphere Annotation**, category *Aneurysms*). It annotates aneurysms — or any ball-shaped
-object — with spheres: the annotator places **two points per sphere**, at opposite ends of a
-diameter, and the sphere follows either point as it is dragged.
+---
+
+The rest of this page is for people changing the code.
 
 ## Commands
 
@@ -87,12 +91,10 @@ reintroduces a specific defect, so change them deliberately rather than in passi
 - Add new `SphereAnnotationLib` modules to `MODULE_PYTHON_SCRIPTS` in
   `SphereAnnotation/CMakeLists.txt`, or they work in development and vanish from the packaged
   extension.
-- Behaviour change → `CHANGELOG.md`. Point-pairing change → `annotation-format.md` too, and
-  treat it as breaking for every annotation ever saved, since nothing in a file declares the
-  convention.
+- Behaviour change → [`../CHANGELOG.md`](../CHANGELOG.md). Point-pairing change →
+  [annotation-format.md](annotation-format.md) too, and treat it as breaking for every
+  annotation ever saved, since nothing in a file declares the convention.
 - A test that stays green when you break the real logic is decorative — check it fails.
-  [`development.md`](development.md) lists four mutations that must go red.
-- Undecided items are listed under "Open decisions" in [`development.md`](development.md)
-  (extension metadata placeholders, the extension's name, the supported Slicer version, the
-  copyright holder, the missing screenshot). Those are the lab's calls, not something to fill
-  in while working on the code.
+  [development.md](development.md) lists four mutations that must go red.
+- Undecided items are listed under "Open decisions" in [development.md](development.md). Those
+  are the lab's calls, not something to fill in while working on the code.

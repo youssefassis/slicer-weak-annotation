@@ -2,16 +2,33 @@
 
 The module appears in Slicer as **Sphere Annotation**, under the *Aneurysms* category.
 
-It annotates aneurysms — or any ball-shaped object — with spheres. You place **two points per
-sphere**, at opposite ends of a diameter; the sphere appears between them and follows either
-point as you drag it. That is the whole interaction, and the whole file format
-([annotation format](annotation-format.md)).
+You place **two points per sphere**, at opposite ends of a diameter. The sphere appears
+between them and follows either point as you drag it. That is the whole interaction, and the
+whole [file format](annotation-format.md).
+
+<img width=100% src="module-panel.jpg" alt="The module panel beside a sphere placed on an aneurysm in the 3D view">
+
+## Your first sphere
+
+1. **Volume → Load**, and pick a `.nii` or `.nii.gz` angiogram.
+2. Drag **Threshold** until the vessels stand out.
+3. **Annotations → Create**, then click one edge of the aneurysm.
+4. **Create** again, then click the opposite edge. The sphere appears.
+5. Drag either point until the sphere covers the aneurysm.
+6. **Save**.
+
+Nothing is drawn after step 3, and that is correct — one point does not define a sphere, and
+the module will not guess the second.
+
+Getting a sphere right usually means nudging both points across two or three slice views. That
+is why they are ordinary Slicer markups rather than anything custom: every tool you already
+know works on them.
 
 ## Before anything else
 
 **Opening this module does not touch what you already have loaded**, and neither does
-**Clean**. Earlier versions cleared the entire scene on open — if you are used to that, you no
-longer need to work around it.
+**Clean**. Earlier versions cleared the entire scene on open — if you are used to working
+around that, you no longer need to.
 
 ## Volume
 
@@ -22,7 +39,7 @@ longer need to work around it.
 | **Threshold** | Everything below it is transparent, so this is what turns the volume into a vessel tree. Starts a third of the way up the volume's intensity range; the slider's ends are that range. |
 | **Opacity** | How solid the vessels above the threshold appear. |
 
-Both sliders are no-ops until a volume is loaded through **Load**.
+Both sliders do nothing until a volume is loaded through **Load**.
 
 ## Annotations
 
@@ -35,30 +52,15 @@ Both sliders are no-ops until a volume is loaded through **Load**.
 | **Opacity** | How solid the spheres are, from transparent to fully opaque. |
 | colour swatch | The colour of every sphere. There is one colour for all of them. |
 
-### Placing a sphere
-
-1. **Create**, then click one edge of the aneurysm.
-2. **Create** again, then click the opposite edge.
-
-The sphere appears as soon as the second point lands. Nothing is drawn after the first click —
-one point does not define a sphere, and the module will not guess the second.
-
-To adjust it, drag either point in the 3D view or in any of the 2D slice views; the sphere
-resizes and re-centres as you drag. Getting a sphere right usually means nudging both points
-across two or three slice views, which is why they are ordinary Slicer markups rather than
-anything custom.
-
-Repeat for each aneurysm. Every pair of points is a new sphere.
-
 ### Removing
 
 **Remove** takes off the **last point placed**, so clicking it twice removes the last sphere.
 It cannot remove a sphere from the middle of the list.
 
-If you need to, you can delete any point from Slicer's **Markups** module — but be aware that
-the spheres are defined by *consecutive pairs*, so deleting an interior point re-pairs every
-sphere after it and the rest of the annotation will visibly change. Deleting two adjacent
-points that form a pair is safe.
+If you need to, you can delete any point from Slicer's **Markups** module — but the spheres
+are defined by *consecutive pairs*, so deleting a single interior point re-pairs every sphere
+after it and the rest of the annotation will visibly change. Deleting **two adjacent points
+that form a pair** is safe.
 
 ## Save and Clean
 
@@ -69,13 +71,17 @@ points that form a pair is safe.
 
 **Clean discards unsaved points without asking.** Save first.
 
-## Things worth knowing
+## If something looks wrong
 
-- **An odd number of points means one sphere is half-placed** and nothing is drawn for it.
-  If a sphere you expected is missing, that is the first thing to check.
-- **Reloading the module** (*Developer Tools → Reload*) removes the drawn spheres but keeps
-  your points. The module loses track of them, so **Create** afterwards starts a new list —
-  save before reloading if you want one file.
-- **Closing the scene** from the File menu takes everything with it, as it does for any module.
-- The spheres are also drawn as outlines on the 2D slice views, which is usually the easier
-  place to judge whether one actually covers the aneurysm.
+| what you see | why |
+| --- | --- |
+| A sphere you expected is missing | An odd number of points — one sphere is half-placed. Place its second point, or **Remove** the stray one. |
+| The spheres shifted after you deleted a point | You deleted an interior point, which re-pairs everything after it. Undo, and delete whole pairs instead. |
+| A sphere has no size | Its two points are on top of each other. Drag one out. |
+| The spheres vanished after a module reload | Reloading removes the drawn spheres but **keeps your points**. The module loses track of them, so **Create** starts a fresh list. Save before reloading if you want one file. |
+| Nothing happens when you click **Create** | Place mode ends after one point. Click **Create** again for the next one. |
+
+Closing the scene from the File menu takes everything with it, as it does for any module.
+
+The spheres are also drawn as outlines on the 2D slice views, which is usually the easier
+place to judge whether one actually covers the aneurysm.

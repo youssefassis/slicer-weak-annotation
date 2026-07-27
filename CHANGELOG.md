@@ -63,6 +63,15 @@ made. See `docs/annotation-format.md`.
   the annotator's work and cannot be rebuilt from anything.
 - Closing the scene from the File menu now leaves the widget with no stale node references.
 
+### Changed (project, not behaviour)
+
+- **Relicensed from MIT to Apache 2.0**, matching the sibling review extension. `LICENSE.md`
+  becomes `LICENSE` with the full Apache text, and the source headers follow.
+- **The screenshots moved into `docs/`**, so `docs/` holds the documentation and its
+  assets together and the repository root stays down to the files that have to be there.
+- **The README was rewritten around getting a first sphere placed**, and the user guide gained
+  the annotated panel screenshot and a symptom-to-cause table.
+
 ### Added
 
 - `SphereAnnotationLib`, a Slicer-free package holding the sphere maths and the display maths,
