@@ -194,6 +194,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             (slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres),
             (slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.draw_spheres),
             (slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.move_spheres),
+            # The points are read in world coordinates, so a transform applied to the node
+            # moves every one of them without a single point event being fired.
+            (slicer.vtkMRMLTransformableNode.TransformModifiedEvent, self.move_spheres),
         )
 
     def adoptPointsNode(self, node):
