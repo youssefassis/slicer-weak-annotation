@@ -328,6 +328,12 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.spheres.append(source)
                 self.appender.AddInputConnection(source.GetOutputPort())
 
+        if not self.spheres and self.currentModelNode() is None:
+            # Nothing to draw, and nothing already drawn that needs clearing. Loading a
+            # markups file with no whole pair in it should not leave an empty "Annotations"
+            # model in the scene and tick a visibility box over it.
+            return
+
         model = self.ensureModelNode()
         if self.spheres:
             self.appender.Update()
@@ -612,6 +618,17 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
 
         node = widget.ensurePointsNode()
         self.placePoints(node, (0, 0, 0))
+        widget.draw_spheres()
+
+        self.assertEqual(len(widget.spheres), 0)
+        # And nothing was added to the scene to hold it. An empty model node reads as an
+        # annotation that exists and is invisible, which is not the state the annotator is in.
+        self.assertIsNone(widget.currentModelNode())
+
+        # Once a sphere has existed the model stays, and is emptied rather than removed.
+        self.placePoints(node, (10, 0, 0))
+        widget.draw_spheres()
+        node.RemoveNthControlPoint(1)
         widget.draw_spheres()
 
         self.assertEqual(len(widget.spheres), 0)
