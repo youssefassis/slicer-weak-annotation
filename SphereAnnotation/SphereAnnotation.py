@@ -243,6 +243,19 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.mrmlScene.RemoveNode(model)
         self.forgetSceneState()
 
+    ############################################ Files ############################################
+
+    def promptForFile(self, caption, fileFilter):
+        """Ask the annotator to pick an existing file. ``None`` if they cancelled.
+
+        Through ``getOpenFileName`` rather than a bare ``QFileDialog``: that gives the
+        platform's own dialog, parents it to the main window so it cannot end up stranded
+        behind it, and lets Qt reopen it where the last one left off instead of in whatever
+        directory Slicer's process happens to have been started from.
+        """
+        path = qt.QFileDialog.getOpenFileName(slicer.util.mainWindow(), caption, "", fileFilter)
+        return Path(path) if path else None
+
     ############################################ Annotations ############################################
 
     def create_point(self):
@@ -278,12 +291,10 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Loading a second file does not replace the first: both are drawn, which is what makes
         two annotations of the same volume comparable side by side.
         """
-        dialog = qt.QFileDialog()
-        dialog.setNameFilters([MARKUPS_FILE_FILTER])
-        if dialog.exec_() != qt.QDialog.Accepted:
+        path = self.promptForFile("Load annotations", MARKUPS_FILE_FILTER)
+        if path is None:
             return
 
-        path = Path(dialog.selectedFiles()[0])
         try:
             node = slicer.util.loadMarkups(str(path))
         except (RuntimeError, OSError) as error:
@@ -389,12 +400,10 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         the scene is left alone. The previous version removed *every* scalar volume and every
         ROI node — including the crop ROI belonging to whatever else the annotator had open.
         """
-        dialog = qt.QFileDialog()
-        dialog.setNameFilters([VOLUME_FILE_FILTER])
-        if dialog.exec_() != qt.QDialog.Accepted:
+        path = self.promptForFile("Load volume", VOLUME_FILE_FILTER)
+        if path is None:
             return
 
-        path = Path(dialog.selectedFiles()[0])
         previous = self.currentVolumeNode()
         try:
             # loadVolume hands the name straight to Qt, which cannot convert a Path.
