@@ -405,10 +405,17 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.applySphere(next(source), node, index)
 
         if self.appender is not None:
+            # This is the only thing the redraw needs. Updating the appender modifies the
+            # polydata the model node was given in `draw_spheres`, the model node is
+            # observing it, and the displayable managers turn that into a render request
+            # that Slicer schedules at the view's own update rate.
+            #
+            # Which is why there is no `forceRenderAllViews()` here any more. It rendered
+            # every 2D and 3D view synchronously on every PointModifiedEvent — an event that
+            # also fires for the preview point tracking the cursor during place mode — so
+            # the drag ran at whatever a full render of the whole layout costs, with Slicer's
+            # own render throttling bypassed rather than used.
             self.appender.Update()
-        # Once per event, not once per sphere: the previous version re-rendered every view
-        # inside the loop, so a drag with ten spheres on screen paid for ten full renders.
-        slicer.util.forceRenderAllViews()
 
     def applySphere(self, source, node, index):
         """Point ``source`` at the sphere that control points ``2*index`` and ``2*index+1`` define."""
