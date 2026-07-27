@@ -1,0 +1,58 @@
+# CI for the Slicer-free part of the project — the GitLab counterpart of
+# `.github/workflows/checks.yml`. Both remotes run the same two checks, so a push cannot be
+# green on one and red on the other. Change one file, change the other.
+#
+# Deliberately two-tier: these jobs need no Slicer, so they finish in seconds and can gate
+# every push. Booting Slicer to run the in-Slicer test (SphereAnnotationTest) takes minutes and
+# a container image, so it is NOT wired up here — see docs/development.md for running it
+# locally, and the commented job at the bottom for what enabling it would take.
+#
+# Gating every commit on a Slicer boot is how CI ends up switched off.
+
+stages: [check]
+
+default:
+  image: python:3.11-slim
+  cache:
+    key:
+      files: [requirements-dev.txt]
+    paths: [.pip-cache]
+  before_script:
+    - export PIP_CACHE_DIR="$CI_PROJECT_DIR/.pip-cache"
+    - python -m pip install --quiet --upgrade pip
+    - python -m pip install --quiet -r requirements-dev.txt
+
+lint:
+  stage: check
+  script:
+    - ruff check .
+  # Also fails if SphereAnnotationLib ever imports slicer/vtk/qt: the banned-api rules in
+  # pyproject.toml are what keep the core testable.
+
+tests:
+  stage: check
+  script:
+    - python -m pytest --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+# To run the in-Slicer test in CI you need a Slicer build or a prebuilt Slicer image plus a
+# virtual framebuffer, because the module builds Qt widgets and a 3D view:
+#
+# slicer-tests:
+#   stage: check
+#   image: <a pinned Slicer image; development runs against Slicer 5.12.3>
+#   script:
+#     - xvfb-run -a Slicer --no-splash --testing --additional-module-paths "$CI_PROJECT_DIR/SphereAnnotation"
+#       --python-code "import slicer.testing;
+#       slicer.testing.runUnitTest(['$CI_PROJECT_DIR/SphereAnnotation'], 'SphereAnnotation.SphereAnnotationTest');
+#       slicer.util.exit(0)"
+#   allow_failure: true
+#
+# That invocation is the one ctest uses, and it exits non-zero on failure. --testing is
+# required, or a failure dialog blocks the job until it times out.
+#
+# Pin the image to the same Slicer version README names as supported, so a Slicer release
+# cannot change what this pipeline means.
