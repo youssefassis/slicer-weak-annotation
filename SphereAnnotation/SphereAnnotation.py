@@ -218,7 +218,10 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def reset(self):
         """Remove what this module put in the scene, and nothing else."""
         self.releasePointsNodes()
-        for node in [self.currentModelNode(), self.currentVolumeNode(), *self.currentPointsNodes()]:
+        volNode = self.currentVolumeNode()
+        if volNode is not None:
+            self.removeVolumeRenderingNodes(volNode)
+        for node in [self.currentModelNode(), volNode, *self.currentPointsNodes()]:
             if node is not None:
                 slicer.mrmlScene.RemoveNode(node)
         self.forgetSceneState()
@@ -418,6 +421,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         previous = self.currentVolumeNode()
         if previous is not None:
+            self.removeVolumeRenderingNodes(previous)
             slicer.mrmlScene.RemoveNode(previous)
         self.volNode = volNode
 
@@ -444,6 +448,21 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # silently failed to open the file.
         self.applyOpacityRamp()
         self.set_volume_visibility()
+
+    def removeVolumeRenderingNodes(self, volNode):
+        """Remove the rendering nodes that were created for ``volNode``.
+
+        ``RemoveNode`` on the volume does not take them with it. Without this, every volume
+        after the first left behind a display node, a volume property node and an ROI — in
+        the scene, in the subject hierarchy, and in the Save dialog the annotator then has to
+        read to find their own annotation.
+        """
+        displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode)
+        if not displayNode:
+            return
+        for node in (displayNode.GetVolumePropertyNode(), displayNode.GetROINode(), displayNode):
+            if node is not None:
+                slicer.mrmlScene.RemoveNode(node)
 
     def volumeRenderingDisplayNode(self):
         """The rendering display node for the volume this module loaded, or ``None``.
@@ -622,6 +641,9 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.placePoints(node, (0, 0, 0), (10, 0, 0))
         widget.draw_spheres()
         model = widget.currentModelNode()
+        widget.adoptVolumeNode(self.syntheticVolume("Ours"))
+        displayNode = widget.volumeRenderingDisplayNode()
+        propertyNode = displayNode.GetVolumePropertyNode()
 
         widget.clearButton()
 
@@ -629,6 +651,9 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertFalse(slicer.mrmlScene.IsNodePresent(node))
         self.assertFalse(slicer.mrmlScene.IsNodePresent(model))
         self.assertEqual(widget.currentPointsNodes(), [])
+        # Including the rendering nodes, which RemoveNode on the volume does not take with it.
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(displayNode))
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(propertyNode))
 
     def test_closing_the_scene_leaves_no_stale_references(self):
         self.delayDisplay("Closing the scene leaves no stale references")
