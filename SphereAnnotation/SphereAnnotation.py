@@ -102,8 +102,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #### Volume
         self.ui.load_volume_button.connect('clicked(bool)', self.load_volume)
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
-        self.ui.volumeOpacity.valueChanged.connect(self.onVolumeOpacityChanged)
-        self.ui.volumeThreshold.valueChanged.connect(self.onVolumeThresholdChanged)
+        self.ui.volumeOpacity.valueChanged.connect(self.applyOpacityRamp)
+        self.ui.volumeThreshold.valueChanged.connect(self.applyOpacityRamp)
 
         #### Annotations
         self.ui.load_annotations_button.connect('clicked(bool)', self.load_annotations_from_file)
@@ -536,24 +536,19 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if displayNode is not None:
             displayNode.SetVisibility(self.ui.vol_visibility.checked)
 
-    def onVolumeThresholdChanged(self, value=None):
-        self.applyOpacityRamp()
-
-    def onVolumeOpacityChanged(self, value=None):
-        self.applyOpacityRamp()
-
-    def applyOpacityRamp(self):
+    def applyOpacityRamp(self, value=None):
         """Rewrite the scalar opacity ramp from the two sliders.
 
-        Both sliders rebuild the whole ramp. The opacity slider used to patch control point
-        number 1 in place, which only worked for as long as the threshold slider happened to
-        leave the upper point at that index.
+        Both sliders rebuild the whole ramp, and both are connected straight to this — the
+        ``value`` Qt hands over is read back off the widgets instead. The opacity slider used
+        to patch control point number 1 in place, which only worked for as long as the
+        threshold slider happened to leave the upper point at that index.
         """
         displayNode = self.volumeRenderingDisplayNode()
         if displayNode is None:
             return
         scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
-        min_value, max_value = self.volNode.GetImageData().GetScalarRange()
+        min_value, max_value = self.currentVolumeNode().GetImageData().GetScalarRange()
         points = rendering.scalar_opacity_points(min_value, max_value,
                                                  self.ui.volumeThreshold.value,
                                                  self.ui.volumeOpacity.value)
