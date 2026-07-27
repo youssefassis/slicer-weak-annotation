@@ -6,7 +6,12 @@ The Aneurysm Annotation Module is a Slicer 3D extension that simplifies the proc
 
 # Getting Started
 ## Prerequisites
--  [3D Slicer](https://www.makeareadme.com/) version 4.11 or later
+-  [3D Slicer](https://download.slicer.org/) version 4.11 or later
+
+> The module is developed and tested against **Slicer 5.12.3**, and now calls Slicer 5 API
+> (`slicer.util.loadMarkups`, `SetVisibility2D`), so the 4.11 floor above is almost certainly
+> no longer accurate. Which version the project commits to supporting is listed as an open
+> decision in [`docs/development.md`](docs/development.md).
 
 ## Installation
 To use this  Annotation module, you will need to have 3D Slicer version 4.11 or later installed on your machine. You can download the latest version of 3D Slicer from the [official website](https://download.slicer.org/).
@@ -41,6 +46,32 @@ The Slicer Aneurysm Annotation Module includes the following features:
 - Ability to adjust the size, position, and color of spheres to highlight the location of the aneurysm.
 - Ability to save and load annotations for later use.
 - Ability to compare multiple annotations at the same time.
+
+## Documentation
+
+Everything is under [`docs/`](docs/README.md), which starts with an orientation page and the
+constraints worth knowing before changing anything.
+
+| | |
+| --- | --- |
+| [user guide](docs/user-guide.md) | what every control does, in the annotator's terms |
+| [annotation format](docs/annotation-format.md) | the point-pairing contract — read this if you consume the files |
+| [architecture](docs/architecture.md) | how the code is split, node ownership, the sphere maths |
+| [development](docs/development.md) | the two Python environments, test loop, open decisions |
+
+## Develop
+
+The sphere maths and the display maths live in `SphereAnnotation/SphereAnnotationLib/`, which
+is kept free of `slicer`/`vtk`/`qt`/`ctk` so it can be tested without launching Slicer:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest     # 39 tests, well under a second
+ruff check .         # lint, and the import boundary above
+```
+
+Both checks run on every push, on GitHub and GitLab alike. Anything touching widgets or MRML
+nodes needs Slicer — see [`docs/development.md`](docs/development.md).
 
 ## Citation
 If you find this repository useful for your work, please consider citing our paper: 
