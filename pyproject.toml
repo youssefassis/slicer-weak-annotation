@@ -14,7 +14,7 @@ name = "sphereannotation"
 version = "0.1.0"
 description = "Sphere annotation of aneurysms from paired points, as a 3D Slicer extension"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 # The floor is the oldest interpreter this code is actually run on, which is CI's
 # python:3.11-slim — not Slicer's, which is *newer* here (Slicer 5.12.3 ships Python
 # 3.12). SphereAnnotationLib has to import cleanly on both; it is checked against 3.11

@@ -1,4 +1,4 @@
-# Copyright the SphereAnnotation authors. Licensed under the MIT License.
+# Copyright the SphereAnnotation authors. Licensed under the Apache License, Version 2.0.
 """Display maths: colour conversion and the volume-rendering opacity ramp."""
 
 #: The ramp always has this many control points, so the widget can rebuild it from the two

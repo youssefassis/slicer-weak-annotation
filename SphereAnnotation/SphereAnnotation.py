@@ -1,4 +1,4 @@
-# Copyright the SphereAnnotation authors. Licensed under the MIT License.
+# Copyright the SphereAnnotation authors. Licensed under the Apache License, Version 2.0.
 """Slicer and Qt glue for the Sphere Annotation module.
 
 Everything here needs an MRML node, a Qt widget or a VTK pipeline. The maths does not, so it

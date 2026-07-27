@@ -1,4 +1,4 @@
-# Copyright the SphereAnnotation authors. Licensed under the MIT License.
+# Copyright the SphereAnnotation authors. Licensed under the Apache License, Version 2.0.
 """The annotation itself: pairs of control points read as spheres.
 
 An annotation is a flat list of markup control points in which **each consecutive pair

@@ -1,4 +1,4 @@
-# Copyright the SphereAnnotation authors. Licensed under the MIT License.
+# Copyright the SphereAnnotation authors. Licensed under the Apache License, Version 2.0.
 """Slicer-free core of the SphereAnnotation module.
 
 Nothing in this package may import ``slicer``, ``vtk``, ``qt`` or ``ctk`` — the linter
