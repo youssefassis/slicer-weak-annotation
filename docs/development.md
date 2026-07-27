@@ -61,14 +61,21 @@ ruff check --fix .
 ### Are the tests actually testing anything?
 
 A quick way to check a test has teeth: break the code on purpose and confirm the suite goes
-red. These four all do, and are worth re-running after touching either core module:
+red. These all do, and are worth re-running after touching either core module:
 
 | break | what should fail |
 | --- | --- |
 | drop the `/ 2` from the radius in `spheres.center_and_radius` | `TestCenterAndRadius` |
 | round `spheres.sphere_count` up instead of down | `test_a_trailing_point_is_not_counted` |
-| remove the clamping in `rendering.scalar_opacity_points` | `test_the_ramp_never_leaves_the_range` |
+| clamp the lower node into the range in `rendering.scalar_opacity_points` | `test_the_scalars_ascend_strictly` |
+| take `rendering.ramp_margin` from the maximum instead of the span | `TestRampMargin`, `test_a_negative_range_still_ascends` |
+| put `rendering.default_threshold` back to `(min + max) / 3` | `test_it_stays_inside_the_range` |
 | halve the opacity on the way through the ramp | `test_opacity_is_passed_through_untouched` |
+
+The middle three are the ones that used to pass. `sorted()` accepts a tie, and `low <= x`
+accepts a threshold pinned to the bottom of the range — so the assertions held while the
+behaviour they were written for did not. Prefer the strict comparison when the boundary *is*
+the bug.
 
 Add `import slicer` to a `SphereAnnotationLib` module and `ruff check .` should fail on
 TID251. If a change to real logic leaves both green, the test is decorative.

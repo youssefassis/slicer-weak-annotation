@@ -45,9 +45,43 @@ made. See `docs/annotation-format.md`.
   number 1 of the opacity transfer function in place, which only held for as long as the
   threshold slider happened to leave the upper point at that index. Both sliders now rebuild
   the ramp.
-- **The opacity ramp stays inside the volume's scalar range.** A threshold at either end of
-  its travel could put a control point outside it, leaving the `vtkPiecewiseFunction` node
-  scalars non-ascending.
+- **The opacity ramp's two nodes are always at distinct scalars.** They could land on the same
+  one — a threshold at the bottom of its travel, or any volume whose maximum is below zero —
+  and `vtkPiecewiseFunction.AddPoint` *replaces* a node at an x it already holds rather than
+  adding one, so the ramp collapsed to a single node and the volume rendered opaque
+  everywhere, with no threshold. Clamping the lower node into the volume's scalar range was
+  what put the two together; only the threshold is clamped now, and a node below the minimum
+  is both representable and what a threshold at the bottom of the range means.
+- **The ramp margin is a tenth of the scalar *span*, not of the maximum.** It was 20% of the
+  span for a volume ranging over (1000, 2000), and *negative* for any volume whose maximum is
+  below zero — which pointed the ramp the wrong way before the clamp hid it.
+- **A fresh volume opens a third of the way up its own range.** `(min + max) / 3` is that only
+  for a volume whose minimum is zero; for a range that sits high it falls below the minimum, so
+  a (2000, 3000) volume opened at 1666, was clamped to the bottom of its own slider, and
+  rendered fully opaque until the annotator found the threshold by hand.
+- **A second volume is shown the way the first one was.** Setting the visibility box and the
+  threshold slider only takes effect when the value *changes*, and a second volume with the
+  same scalar range as the first changes neither — the same protocol, the next patient. Its
+  display node kept the defaults it was created with, which for a volume rendering display
+  node means invisible, so the module looked like it had failed to open the file.
+- **A volume's rendering nodes are removed along with the volume.** `RemoveNode` on the volume
+  leaves its volume rendering display node, its volume property node and its ROI behind, so
+  every volume after the first added another set to the scene and to the Save dialog.
+- **A points node deleted from the Data module stops being drawn.** Its spheres stayed on
+  screen until an unrelated point event happened to force a redraw.
+- **The spheres follow a transform applied to their markups node.** Positions are read in world
+  coordinates, so a transform moves every point at once without firing a point event.
+- **The appearance controls survive a missing display node.** All three checked the model node
+  and then reached straight through it, so deleting the display node from the Data module made
+  every subsequent slider move raise.
+- **A control point position is read into zeroed memory.** `GetNthControlPointPositionWorld`
+  logs and returns without writing when it does not like the index, and the `np.empty` buffer
+  then handed whatever was in that memory to `vtkSphereSource` as a centre.
+- **An annotation with no whole pair in it no longer creates an empty model node** and ticks a
+  visibility box over it.
+- **Loading a file that is already open asks first.** It used to produce a second markups node
+  and a second identical set of spheres drawn through the first, with nothing to tell them
+  apart. Asked rather than refused — re-reading a file edited on disk is a real thing to want.
 - **Sphere positions are read in world coordinates.** `GetNthControlPointPosition` returns the
   markups node's own frame, which differs from world as soon as a transform is applied to it.
 - **A failed file load says what went wrong.** The bare `except:` around the markups loader
@@ -62,6 +96,15 @@ made. See `docs/annotation-format.md`.
   otherwise a reload orphans it and adds a second — but leaves the markups nodes, which are
   the annotator's work and cannot be rebuilt from anything.
 - Closing the scene from the File menu now leaves the widget with no stale node references.
+- **Dragging a point no longer forces a render.** `move_spheres` called
+  `forceRenderAllViews()` on every `PointModifiedEvent` — a synchronous render of every 2D and
+  3D view, for an event that also fires for the preview point tracking the cursor in place
+  mode. The model node already observes the appender's output, so updating it raises a render
+  request that Slicer schedules at each view's own update rate. *Needs confirming in Slicer:
+  a dragged point should still redraw live.*
+- **The file dialogs are the platform's own**, parented to the main window so they cannot end
+  up stranded behind it, and they reopen where the last one left off rather than in whatever
+  directory Slicer was started from.
 
 ### Changed (project, not behaviour)
 
@@ -77,10 +120,11 @@ made. See `docs/annotation-format.md`.
 - `SphereAnnotationLib`, a Slicer-free package holding the sphere maths and the display maths,
   so that logic can be tested without launching Slicer. `ruff` bans `slicer`/`vtk`/`qt`/`ctk`
   imports inside it, so the boundary fails CI rather than eroding quietly.
-- `tests/`, a pytest suite covering `SphereAnnotationLib` (39 cases, well under a second, no
+- `tests/`, a pytest suite covering `SphereAnnotationLib` (46 cases, well under a second, no
   Slicer needed).
 - `SphereAnnotationTest`, an in-Slicer test covering what genuinely needs a scene — including
-  the guarantee that opening the module and cleaning up leave other nodes alone.
+  the guarantee that opening the module and cleaning up leave other nodes alone, that a second
+  volume is shown like the first, and that deleting a points node takes its spheres with it.
 - CI on both remotes (`.github/workflows/checks.yml`, `.gitlab-ci.yml`), each running `ruff`
   and `pytest`.
 - `docs/`, indexed by [`docs/README.md`](docs/README.md):

@@ -57,12 +57,20 @@ straight:
 
 `rendering.scalar_opacity_points` builds a fixed 2-point opacity ramp: transparent below
 `threshold - margin`, rising to the chosen opacity at `threshold`. The margin is a tenth of
-the volume's scalar maximum, proportional rather than absolute because the scalar range of an
+the volume's scalar *span*, proportional rather than absolute because the scalar range of an
 angiogram depends on how it was acquired.
 
-Both scalars are clamped into `[min, max]` and the lower point is held strictly below the
-upper one, because `vtkPiecewiseFunction` cannot represent a non-ascending node list — and
-the threshold slider reaches both ends of the range.
+**The two node scalars must be strictly ascending**, and that is the invariant the whole
+function exists to hold. `vtkPiecewiseFunction.AddPoint` *replaces* a node at an x it already
+holds rather than adding one, so two equal scalars leave a one-node function — opaque
+everywhere, with no ramp and no threshold. Only the threshold is clamped into `[min, max]`;
+the lower node is left free to fall below the minimum, which is both representable and the
+honest reading of a threshold at the bottom of the range. Clamping *it* into the range was
+what used to collide the two.
+
+`rendering.default_threshold` starts a fresh volume a third of the way up its own range —
+`min + (max - min) / 3`, not `(min + max) / 3`, which agrees only for a volume whose minimum
+is zero and which lands below the minimum for a range that sits high.
 
 Both sliders rebuild the whole ramp through `applyOpacityRamp`. The opacity slider used to
 patch control point number 1 in place, which only worked for as long as the threshold slider
@@ -121,15 +129,37 @@ observes. That aliasing is what makes the two update paths differ:
 compares the sphere count first and falls back to `draw_spheres` when they disagree —
 otherwise it would move the wrong sphere, or index past the end.
 
+**Neither path renders anything itself.** Updating the appender modifies the polydata the
+model node is observing, the model node re-emits that, and the displayable managers turn it
+into a render request Slicer schedules at each view's own update rate. `move_spheres` used to
+call `forceRenderAllViews()` instead — a synchronous render of every 2D and 3D view, on every
+`PointModifiedEvent`, an event that also fires for the preview point tracking the cursor
+during place mode. That put the cost of a full render of the layout on every mouse move and
+bypassed the throttling that exists to prevent exactly this.
+
+`draw_spheres` returns early when there is nothing to draw *and* no model node yet, so an
+annotation with no whole pair in it does not leave an empty model in the scene. A model that
+already exists is still emptied — those spheres have to stop being drawn.
+
 The model node is created once and updated in place. Removing it by name and calling
 `AddModel` again on every point event — which is what the original did — churned the subject
 hierarchy and reset the display properties on every drag.
 
 ### Observers
 
-Three events on each owned markups node reach the widget, listed once in
+Four events on each owned markups node reach the widget, listed once in
 `pointsNodeObservations()`: `PointPositionDefinedEvent` and `PointRemovedEvent` →
-`draw_spheres`, `PointModifiedEvent` → `move_spheres`.
+`draw_spheres`, `PointModifiedEvent` and `TransformModifiedEvent` → `move_spheres`. The
+transform one is there because the points are read in *world* coordinates: a transform
+applied to the node moves every point at once without firing a single point event.
+
+Two events on the scene reach it as well: `EndCloseEvent` → `onSceneEndClose`, and
+`NodeRemovedEvent` → `onNodeRemoved`, which redraws when one of the owned points nodes has
+left. `currentPointsNodes()` prunes the reference on its own, but nothing was asking it to,
+so a node deleted from the Data module kept its spheres on screen until an unrelated point
+event forced a redraw. `onNodeRemoved` returns immediately during batch processing — a scene
+close or an import removes nodes wholesale, and `onSceneEndClose` picks that state up
+afterwards.
 
 `adoptPointsNode` attaches them through `VTKObservationMixin.addObserver`, behind a
 `hasObserver` guard. Both halves matter. The original called `node.AddObserver` directly, so
@@ -143,7 +173,7 @@ Three paths, with different obligations:
 
 | | |
 | --- | --- |
-| `reset()` (the **Clean** button) | removes the volume, points and model this module owns, then forgets them |
+| `reset()` (the **Clean** button) | forgets the volume, points and model this module owns, then removes them |
 | `onSceneEndClose` | the nodes are already gone; only `releasePointsNodes()` + `forgetSceneState()` |
 | `cleanup()` (reload / Slicer exit) | observers first, then the **model node only** |
 
@@ -151,6 +181,15 @@ Three paths, with different obligations:
 matters because the callers have opposite obligations: **Clean** must remove the nodes itself,
 while after a scene close there is nothing left to remove and reaching for those nodes is what
 would go wrong.
+
+**`reset()` forgets before it removes**, and the order is load-bearing now that
+`NodeRemovedEvent` is observed: removing the first points node fires the handler, which would
+redraw and rebuild the model node the previous iteration had just removed. With the
+references already dropped there is nothing left for it to redraw.
+
+Removing the volume also means removing the nodes that were created *for* it —
+`removeVolumeRenderingNodes` takes the volume rendering display node, the volume property
+node and the ROI, none of which `RemoveNode` on the volume takes with it.
 
 `cleanup()` drops the observers first, so a handler cannot run against a widget being
 destroyed. It removes the model node because a reload builds a new widget that would otherwise
