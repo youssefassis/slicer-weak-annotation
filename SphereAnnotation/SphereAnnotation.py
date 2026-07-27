@@ -413,7 +413,11 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def applySphere(self, source, node, index):
         """Point ``source`` at the sphere that control points ``2*index`` and ``2*index+1`` define."""
         first, second = spheres.point_indices(index)
-        a, b = np.empty(3), np.empty(3)
+        # Zeroed, not `np.empty`. GetNthControlPointPositionWorld logs and returns without
+        # writing when it does not like the index, and uninitialised memory then reaches
+        # vtkSphereSource as a centre — a sphere somewhere arbitrary, or a NaN radius that
+        # takes the whole append pipeline with it, instead of one visibly at the origin.
+        a, b = np.zeros(3), np.zeros(3)
         node.GetNthControlPointPositionWorld(first, a)
         node.GetNthControlPointPositionWorld(second, b)
         center, radius = spheres.center_and_radius(a, b)
