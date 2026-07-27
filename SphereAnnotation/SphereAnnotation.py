@@ -511,20 +511,28 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
 
         min_value, max_value = volNode.GetImageData().GetScalarRange()
-        # In one call: setting `minimum` and then `maximum` passes through a min > max state
-        # whenever the new volume's range sits above the old one, and Qt resolves that by
-        # putting the value somewhere neither of them asked for.
-        self.ui.volumeThreshold.setRange(min_value, max_value)
-        self.ui.volumeThreshold.value = rendering.default_threshold(min_value, max_value)
+        # Widen, then narrow. Assigning one end past the other drags that other end along and
+        # the value with it — setting `minimum = 2000` on a (0, 100) slider leaves it at
+        # (2000, 2000) with the value on top — so the pair must never be crossed, and
+        # ctkSliderWidget's atomic `setRange` is not exposed on the Python side.
+        slider = self.ui.volumeThreshold
+        slider.minimum = min(min_value, slider.minimum)
+        slider.maximum = max_value
+        slider.minimum = min_value
+        slider.value = rendering.default_threshold(min_value, max_value)
         self.ui.vol_visibility.checked = True
 
-        # Applied here rather than left to the two assignments above, which only emit when
-        # the value actually *changes*. A second volume with the same scalar range as the
-        # first — the same protocol, the next patient — changes neither: the slider already
-        # sits at that threshold, and the box has been ticked since the first load. The new
-        # display node would then keep the defaults it was created with, which for a volume
-        # rendering display node means invisible, and the module would look like it had
-        # silently failed to open the file.
+        # Applied here rather than left to the assignments above, which only emit when the
+        # value actually *changes*. A second volume with the same scalar range as the first —
+        # the same protocol, the next patient — does not change the threshold, so nothing was
+        # emitted and the new display node kept the preset `UpdateDisplayNodeFromVolumeNode`
+        # gave it. Measured in Slicer 5.12.3: a five-node default ramp, while the two sliders
+        # went on claiming a threshold of 333 at full opacity. The controls described a volume
+        # that was not the one on screen.
+        #
+        # The visibility call is belt and braces rather than a fix: a rendering display node
+        # is created visible, so the box only has to be able to turn it *off*. Keeping the
+        # checkbox authoritative here costs nothing and means one less thing to re-derive.
         self.applyOpacityRamp()
         self.set_volume_visibility()
 
@@ -776,23 +784,29 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertAlmostEqual(widget.spheres[0].GetCenter()[0], 5.0)
 
     def test_a_second_volume_is_shown_like_the_first(self):
-        """Neither the rendering nor the ramp may depend on a widget value happening to change.
+        """The ramp may not depend on a widget value happening to change.
 
-        The second volume here has the same scalar range as the first, so the threshold
-        slider keeps its value and the visibility box stays ticked — and the two Qt signals
-        the module used to rely on never fire. It loaded, and it was invisible.
+        Both volumes here have the same scalar range, and **the sliders are not touched
+        between the two loads** — which is the whole scenario. The second volume's default
+        threshold is the value the slider already holds, so `valueChanged` never fires. The
+        module used to rely on that signal to reach the display node, and without it the new
+        volume kept the five-node preset `UpdateDisplayNodeFromVolumeNode` gave it while the
+        sliders went on describing the ramp the *first* volume got.
         """
         self.delayDisplay("A second volume is shown like the first")
         widget = self.widget()
 
         widget.adoptVolumeNode(self.syntheticVolume("First"))
-        self.assertTrue(widget.volumeRenderingDisplayNode().GetVisibility())
-
         widget.adoptVolumeNode(self.syntheticVolume("Second"))
+
         displayNode = widget.volumeRenderingDisplayNode()
         self.assertIsNotNone(displayNode)
         self.assertTrue(displayNode.GetVisibility())
 
-        # And the ramp is this module's, not whatever the display node was created with.
+        # The ramp is this module's — two nodes, the upper one where the sliders say.
         scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
         self.assertEqual(scalarOpacity.GetSize(), rendering.SCALAR_OPACITY_POINT_COUNT)
+        upper = [0.0] * 4
+        scalarOpacity.GetNodeValue(rendering.SCALAR_OPACITY_POINT_COUNT - 1, upper)
+        self.assertAlmostEqual(upper[0], widget.ui.volumeThreshold.value)
+        self.assertAlmostEqual(upper[1], widget.ui.volumeOpacity.value)

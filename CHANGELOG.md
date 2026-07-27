@@ -59,11 +59,12 @@ made. See `docs/annotation-format.md`.
   for a volume whose minimum is zero; for a range that sits high it falls below the minimum, so
   a (2000, 3000) volume opened at 1666, was clamped to the bottom of its own slider, and
   rendered fully opaque until the annotator found the threshold by hand.
-- **A second volume is shown the way the first one was.** Setting the visibility box and the
-  threshold slider only takes effect when the value *changes*, and a second volume with the
-  same scalar range as the first changes neither — the same protocol, the next patient. Its
-  display node kept the defaults it was created with, which for a volume rendering display
-  node means invisible, so the module looked like it had failed to open the file.
+- **A second volume gets the opacity ramp the sliders are describing.** Setting the threshold
+  slider only takes effect when the value *changes*, and a second volume with the same scalar
+  range as the first does not change it — the same protocol, the next patient. Its display
+  node kept the five-node preset Slicer gave it while the panel went on claiming the threshold
+  and opacity the *first* volume was shown at, so the two controls described a volume that was
+  not the one on screen.
 - **A volume's rendering nodes are removed along with the volume.** `RemoveNode` on the volume
   leaves its volume rendering display node, its volume property node and its ROI behind, so
   every volume after the first added another set to the scene and to the Save dialog.
