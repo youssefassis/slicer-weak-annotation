@@ -101,8 +101,9 @@ made. See `docs/annotation-format.md`.
   `forceRenderAllViews()` on every `PointModifiedEvent` — a synchronous render of every 2D and
   3D view, for an event that also fires for the preview point tracking the cursor in place
   mode. The model node already observes the appender's output, so updating it raises a render
-  request that Slicer schedules at each view's own update rate. *Needs confirming in Slicer:
-  a dragged point should still redraw live.*
+  request that Slicer schedules at each view's own update rate. Confirmed in Slicer 5.12.3:
+  dragging a point still raises `PolyDataModifiedEvent`, moves the model's polydata with the
+  point, and renders the 3D view, with nothing forcing it.
 - **The file dialogs are the platform's own**, parented to the main window so they cannot end
   up stranded behind it, and they reopen where the last one left off rather than in whatever
   directory Slicer was started from.

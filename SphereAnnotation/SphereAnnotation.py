@@ -727,6 +727,16 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertAlmostEqual(widget.spheres[0].GetRadius(), 10.0)
         self.assertEqual(list(widget.spheres[0].GetCenter()), [10.0, 0.0, 0.0])
 
+        # And the geometry the *model node* holds moved with it. Nothing forces a render any
+        # more, so this is the chain the whole redraw rests on: the appender updates, the
+        # polydata the model observes is modified, and the displayable managers ask for a
+        # render. A sphere source that moved while the model's polydata did not would leave
+        # the annotator dragging a point that nothing follows.
+        bounds = [0.0] * 6
+        widget.currentModelNode().GetPolyData().GetBounds(bounds)
+        # Not 20.0 exactly — a 30-facet hull falls just inside its own radius.
+        self.assertAlmostEqual(bounds[1], 20.0, delta=0.1)
+
     def test_clean_removes_only_this_modules_nodes(self):
         self.delayDisplay("Clean removes only this module's nodes")
         widget = self.widget()
