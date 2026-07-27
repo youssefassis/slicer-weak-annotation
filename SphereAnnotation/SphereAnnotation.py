@@ -430,7 +430,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         center, radius = spheres.center_and_radius(a, b)
         source.SetCenter(*center)
         source.SetRadius(radius)
-        source.Update()
+        # No `source.Update()`: the appender pulls the whole pipeline, and executing each
+        # source by hand first only re-tessellates them one at a time ahead of it.
 
     def set_annotations_visibility(self, state=None):
         displayNode = self.annotationsDisplayNode()
