@@ -120,6 +120,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # A scene closed from the File menu while the module is open would otherwise leave
         # every reference below pointing at a removed node.
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+        # And a single node deleted from the Data module has to stop being drawn.
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeRemovedEvent, self.onNodeRemoved)
 
     ############################################ Node ownership ############################################
 
@@ -221,15 +223,36 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         volNode = self.currentVolumeNode()
         if volNode is not None:
             self.removeVolumeRenderingNodes(volNode)
-        for node in [self.currentModelNode(), volNode, *self.currentPointsNodes()]:
+        nodes = [self.currentModelNode(), volNode, *self.currentPointsNodes()]
+        # Forget first, then remove. Removing a node fires NodeRemovedEvent, and the handler
+        # for it redraws when one of the points nodes has gone — which, halfway through this
+        # loop, would put back the model node the first iteration just removed. With the
+        # references already dropped there is nothing left for it to redraw.
+        self.forgetSceneState()
+        for node in nodes:
             if node is not None:
                 slicer.mrmlScene.RemoveNode(node)
-        self.forgetSceneState()
 
     def onSceneEndClose(self, caller=None, event=None):
         """The scene was closed from the File menu: the nodes are already gone."""
         self.releasePointsNodes()
         self.forgetSceneState()
+
+    def onNodeRemoved(self, caller=None, event=None):
+        """A node left the scene. If it was one of ours, stop drawing its spheres.
+
+        :meth:`currentPointsNodes` drops the reference on its own, but nothing was asking it
+        to: a node deleted from the Data module left its spheres on screen until the next
+        point event on some other node happened to trigger a redraw.
+        """
+        if slicer.mrmlScene.IsBatchProcessing():
+            # A close or an import removes nodes wholesale. `onSceneEndClose` picks the state
+            # up afterwards; rebuilding the model here would put a node back into a scene
+            # that is in the middle of being emptied.
+            return
+        owned = len(self.pointsNodes)
+        if len(self.currentPointsNodes()) != owned:
+            self.draw_spheres()
 
     def cleanup(self):
         """Called when the widget is destroyed — a module reload, or Slicer closing.
@@ -552,6 +575,8 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.test_closing_the_scene_leaves_no_stale_references()
         self.setUp()
         self.test_a_second_volume_is_shown_like_the_first()
+        self.setUp()
+        self.test_deleting_a_points_node_stops_drawing_its_spheres()
 
     def widget(self):
         slicer.util.selectModule("SphereAnnotation")
@@ -686,6 +711,24 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.modelNode)
         self.assertEqual(widget.pointsNodes, [])
         self.assertEqual(widget.spheres, [])
+
+    def test_deleting_a_points_node_stops_drawing_its_spheres(self):
+        """Deleting the points from the Data module has to take their spheres with them."""
+        self.delayDisplay("Deleting a points node stops drawing its spheres")
+        widget = self.widget()
+
+        kept = widget.ensurePointsNode()
+        self.placePoints(kept, (0, 0, 0), (10, 0, 0))
+        deleted = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "Second annotation")
+        widget.adoptPointsNode(deleted)
+        self.placePoints(deleted, (50, 0, 0), (60, 0, 0))
+        self.assertEqual(len(widget.spheres), 2)
+
+        slicer.mrmlScene.RemoveNode(deleted)
+
+        self.assertEqual(len(widget.spheres), 1)
+        self.assertEqual(widget.currentPointsNodes(), [kept])
+        self.assertAlmostEqual(widget.spheres[0].GetCenter()[0], 5.0)
 
     def test_a_second_volume_is_shown_like_the_first(self):
         """Neither the rendering nor the ramp may depend on a widget value happening to change.
