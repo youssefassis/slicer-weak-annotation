@@ -326,6 +326,24 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 node.RemoveNthControlPoint(count - 1)
                 return
 
+    def isAlreadyLoaded(self, path):
+        """Whether one of the annotations this module owns was read from ``path``.
+
+        Asked rather than enforced. Re-reading a file that has been edited on disk is a real
+        thing to want, and refusing it outright would be worse than the duplicate — but the
+        usual reason to pick the same file twice is not noticing it is open, and the result
+        is two identical sets of spheres drawn through each other with nothing to tell them
+        apart.
+        """
+        for node in self.currentPointsNodes():
+            storageNode = node.GetStorageNode()
+            if storageNode is None:
+                continue
+            fileName = storageNode.GetFileName()
+            if fileName and Path(fileName).resolve() == path.resolve():
+                return True
+        return False
+
     def load_annotations_from_file(self):
         """Load a markups file and adopt it as one of this module's annotations.
 
@@ -334,6 +352,11 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         path = self.promptForFile("Load annotations", MARKUPS_FILE_FILTER)
         if path is None:
+            return
+
+        if self.isAlreadyLoaded(path) and not slicer.util.confirmYesNoDisplay(
+                f"{path.name} is already loaded.\n\nLoad a second copy of it?",
+                windowTitle="Sphere Annotation"):
             return
 
         try:
