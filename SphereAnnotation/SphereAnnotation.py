@@ -176,6 +176,18 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.annotationsVisibility.checked = True
         return node
 
+    def annotationsDisplayNode(self):
+        """The display node of the spheres model, or ``None``.
+
+        A model node can outlive its display node — deleting one from the Data module is a
+        click — and all three appearance controls would otherwise raise on ``None`` every
+        time the annotator moved a slider.
+        """
+        model = self.currentModelNode()
+        if model is None:
+            return None
+        return model.GetDisplayNode()
+
     def pointsNodeObservations(self):
         """The events on a markups node that have to reach this widget, with their handlers."""
         return (
@@ -407,21 +419,21 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         source.Update()
 
     def set_annotations_visibility(self, state=None):
-        model = self.currentModelNode()
-        if model is not None:
-            model.GetDisplayNode().SetVisibility(self.ui.annotationsVisibility.checked)
+        displayNode = self.annotationsDisplayNode()
+        if displayNode is not None:
+            displayNode.SetVisibility(self.ui.annotationsVisibility.checked)
 
     def set_annotations_color(self, color=None):
-        model = self.currentModelNode()
-        if model is not None:
-            model.GetDisplayNode().SetColor(*rendering.to_rgb(self.ui.ColorPickerButton.color))
+        displayNode = self.annotationsDisplayNode()
+        if displayNode is not None:
+            displayNode.SetColor(*rendering.to_rgb(self.ui.ColorPickerButton.color))
 
     def set_annotations_opacity(self, value=None):
-        model = self.currentModelNode()
-        if model is not None:
+        displayNode = self.annotationsDisplayNode()
+        if displayNode is not None:
             # The slider value, not half of it. It used to be halved on the way through, so
             # the annotator could never get past 50% opacity however far right they dragged.
-            model.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value)
+            displayNode.SetOpacity(self.ui.annotationsOpacity.value)
 
     ############################################ Volume ############################################
 
