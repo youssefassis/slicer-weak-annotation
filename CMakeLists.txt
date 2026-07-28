@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16.3...3.19.7 FATAL_ERROR)
 
-project(AneurysmAnnotation)
+# The extension is named after its one module, so that the name in the Extensions Manager,
+# the name in Slicer's module list and the name in this tree are the same word. The subject
+# it is aimed at lives in EXTENSION_CATEGORY below, not in the name — the module works on any
+# ball-shaped object.
+project(SphereAnnotation)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
