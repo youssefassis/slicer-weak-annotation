@@ -45,19 +45,37 @@ Either way the module then appears in the module list as **Sphere Annotation**, 
 
 ## Your first annotation
 
+**No angiogram to hand?** A synthetic one ships with the module — see
+[`data/`](data/README.md). Everything below is shown on it.
+
 1. **Volume → Load.** Pick a `.nii` or `.nii.gz` angiogram. It appears in the 3D view.
 2. Drag **Threshold** until the vessels stand out. This is the one control worth playing
    with — it is what turns the volume into a vessel tree you can aim at.
-3. **Annotations → Create**, then click one edge of the aneurysm.
+
+   <img width=70% src="docs/images/step-1-volume.png" alt="A vessel tree in the 3D view after loading a volume and setting the threshold">
+
+3. **Annotations → Create**, then click one edge of the aneurysm. *Nothing is drawn yet.*
+
+   <img width=70% src="docs/images/step-2-one-point.png" alt="A single control point placed on the edge of an aneurysm, with no sphere drawn">
+
 4. **Create** again, then click the opposite edge. *The sphere appears.*
+
+   <img width=70% src="docs/images/step-3-sphere.png" alt="The sphere appearing between the two control points, covering the aneurysm">
+
 5. Nudge either point — in the 3D view or in any 2D slice view — until the sphere covers the
    aneurysm. It resizes as you drag.
 6. **Save** when you are done, and pick a location. Your annotation is the markups node.
 
-Repeat steps 3–5 for each aneurysm. Every pair of points is a new sphere.
+Repeat steps 3–5 for each aneurysm. Every pair of points is a new sphere:
+
+<img width=70% src="docs/images/step-4-all-spheres.png" alt="Three aneurysms annotated with three spheres in one volume">
 
 > Nothing is drawn after step 3, and that is correct: one point does not define a sphere. If a
 > sphere you expected is missing, an odd number of points is the first thing to check.
+
+> The volume above is deliberately half-transparent. Each sphere is exactly the size of the
+> sac it covers, so at full opacity the sac hides it — turn **Volume → Opacity** down to see
+> one against the other.
 
 The [user guide](docs/user-guide.md) covers every control, and the parts that surprise people.
 
@@ -92,7 +110,7 @@ is kept free of `slicer`/`vtk`/`qt`/`ctk` so it can be tested without launching 
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest     # 46 tests, well under a second
+python -m pytest     # 58 tests, well under a second
 ruff check .         # lint, and the import boundary above
 ```
 

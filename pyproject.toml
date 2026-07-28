@@ -30,7 +30,9 @@ dev = ["numpy", "pytest", "ruff"]
 testpaths = ["tests"]
 # SphereAnnotationLib is imported from where Slicer keeps it rather than installed, so the
 # tests see the same layout Slicer does.
-pythonpath = ["SphereAnnotation"]
+# `tools` is here so test_sample_data.py can import the generator and check the committed
+# sample against the constants it was drawn from, rather than against a second copy of them.
+pythonpath = ["SphereAnnotation", "tools"]
 addopts = "--strict-markers -q"
 
 [tool.ruff]

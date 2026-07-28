@@ -20,6 +20,11 @@ whole [file format](annotation-format.md).
 Nothing is drawn after step 3, and that is correct — one point does not define a sphere, and
 the module will not guess the second.
 
+<img width=48% src="images/step-2-one-point.png" alt="One point placed: no sphere"> <img width=48% src="images/step-3-sphere.png" alt="The second point placed: the sphere appears">
+
+*One point, then two.* No angiogram to hand? A synthetic one ships with the module — see
+[`data/`](../data/README.md), which is what these figures use.
+
 Getting a sphere right usually means nudging both points across two or three slice views. That
 is why they are ordinary Slicer markups rather than anything custom: every tool you already
 know works on them.
@@ -40,6 +45,12 @@ around that, you no longer need to.
 | **Opacity** | How solid the vessels above the threshold appear. |
 
 Both sliders do nothing until a volume is loaded through **Load**.
+
+<img width=48% src="images/threshold-low.png" alt="A low threshold: background tissue obscures the vessels"> <img width=48% src="images/threshold-high.png" alt="A high threshold: only the brightest vessels remain">
+
+*A low threshold, then a high one.* Low leaves the background haze in the way. High clears it
+but thins the vessels, and pushed far enough it starts eating the smaller branches. Somewhere
+between is a vessel tree you can aim at.
 
 ## Annotations
 

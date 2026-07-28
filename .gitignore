@@ -12,6 +12,11 @@ report.xml
 # other one and lives inside the Slicer install, so only this side ever lands in the tree.
 .venv/
 
+# The tool that regenerates docs/images/ by driving a running Slicer. Deliberately untracked:
+# the screenshots it produces are committed, the script that produced them is local. Ruff
+# skips it along with everything else git ignores, so no lint exemption is needed for it.
+tools/make_screenshots.py
+
 # Annotations saved while trying the module out. The module writes FCSV beside whatever
 # volume is open, so a trial run would otherwise show up as a change to the repository.
 *.fcsv
