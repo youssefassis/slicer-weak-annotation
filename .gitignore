@@ -8,6 +8,10 @@ report.xml
 .pytest_cache/
 .ruff_cache/
 
+# The dev Python of the two environments in docs/development.md. Slicer's Python is the
+# other one and lives inside the Slicer install, so only this side ever lands in the tree.
+.venv/
+
 # Annotations saved while trying the module out. The module writes FCSV beside whatever
 # volume is open, so a trial run would otherwise show up as a change to the repository.
 *.fcsv
