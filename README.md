@@ -110,4 +110,4 @@ Medical Image Computing and Computer-Assisted Intervention (MICCAI), Springer, 2
 
 ## License
 
-Licensed under [Apache 2.0](LICENSE).
+Copyright 2023-2026 Youssef Assis. Licensed under [Apache 2.0](LICENSE).
