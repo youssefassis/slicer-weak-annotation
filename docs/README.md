@@ -10,6 +10,7 @@ as you drag it.
 | if you want to… | read |
 | --- | --- |
 | annotate a volume | [user-guide.md](user-guide.md) |
+| try the module without an angiogram of your own | [../data/README.md](../data/README.md) |
 | read or generate annotation files | [annotation-format.md](annotation-format.md) |
 | change the code | [architecture.md](architecture.md), then the rest of this page |
 | set up a dev environment, run the tests | [development.md](development.md) |
@@ -26,7 +27,7 @@ The rest of this page is for people changing the code.
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest        # Slicer-free suite; 46 tests, well under a second
+python -m pytest        # Slicer-free suite; 58 tests, well under a second
 python -m pytest -k center_and_radius
 ruff check .            # lint + the Slicer-free import boundary
 ```
