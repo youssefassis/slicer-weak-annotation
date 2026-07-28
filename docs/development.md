@@ -32,11 +32,12 @@ running the tests and linter outside Slicer.
 It also means **reproducibility comes from pinning the Slicer version**, not from pinning
 Python packages.
 
-> **Pin the Slicer version.** Development currently runs against **Slicer 5.12.3**. What is
-> still a decision rather than a fact: whether that is the version the lab commits to
-> supporting, and therefore what to pin in the commented `slicer-tests` jobs in the CI files.
-> The README still advertises "4.11 or later", which is almost certainly no longer true — the
-> module calls `slicer.util.loadMarkups` and `SetVisibility2D`, which are Slicer 5 API.
+> **The pinned Slicer version is 5.12.** That is what the README advertises as supported and
+> what development runs against — 5.12.3 specifically. Earlier 5.x releases are untested
+> rather than excluded; Slicer 4 is excluded, because the module calls
+> `slicer.util.loadMarkups` and `SetVisibility2D`, which are Slicer 5 API. When the
+> commented `slicer-tests` jobs in the CI files are enabled, pin their image to 5.12 so the
+> pipeline and the README cannot drift apart.
 
 ## The fast loop
 

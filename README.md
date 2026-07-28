@@ -16,9 +16,9 @@ a size — in a couple of clicks, without segmenting anything.
 
 ## Requirements
 
-**3D Slicer 5.** Developed and tested against
-[5.12.3](https://download.slicer.org/); other 5.x releases will very likely work. Slicer 4
-will not — the module uses Slicer 5's markups API.
+**3D Slicer 5.12 or later.** Developed and tested against
+[5.12.3](https://download.slicer.org/). Earlier 5.x releases are untested and may work;
+Slicer 4 will not — the module uses Slicer 5's markups API.
 
 Nothing else to install: Slicer supplies numpy, VTK and Qt, and the module drives only
 modules that ship with Slicer.
