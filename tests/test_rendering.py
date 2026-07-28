@@ -1,4 +1,4 @@
-# Copyright the SphereAnnotation authors. Licensed under the Apache License, Version 2.0.
+# Copyright 2023-2026 Youssef Assis. Licensed under the Apache License, Version 2.0.
 """Colour conversion and the volume-rendering opacity ramp."""
 
 import pytest

@@ -63,7 +63,7 @@ jobs:
 #
 #  slicer-tests:
 #    runs-on: ubuntu-latest
-#    container: <a pinned Slicer image; development runs against Slicer 5.12.3>
+#    container: <a Slicer 5.12 image — the version README names as supported>
 #    continue-on-error: true
 #    steps:
 #      - uses: actions/checkout@v4

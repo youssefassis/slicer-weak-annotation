@@ -43,7 +43,7 @@ tests:
 #
 # slicer-tests:
 #   stage: check
-#   image: <a pinned Slicer image; development runs against Slicer 5.12.3>
+#   image: <a Slicer 5.12 image — the version README names as supported>
 #   script:
 #     - xvfb-run -a Slicer --no-splash --testing --additional-module-paths "$CI_PROJECT_DIR/SphereAnnotation"
 #       --python-code "import slicer.testing;
