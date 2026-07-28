@@ -45,7 +45,7 @@ Both sliders do nothing until a volume is loaded through **Load**.
 
 | control | what it does |
 | --- | --- |
-| **Load** | Opens a markups file (`.mrk.json` or `.fcsv`) and draws its points as spheres. Loading a second file **adds** it rather than replacing the first — that is how you compare two annotations of the same volume. |
+| **Load** | Opens a markups file (`.mrk.json` or `.fcsv`) and draws its points as spheres. Loading a second file **adds** it rather than replacing the first — that is how you compare two annotations of the same volume. Picking a file that is already open asks first, since two identical sets of spheres drawn through each other cannot be told apart. |
 | **Create** | Enters place mode for one point. Click in any view to place it. |
 | **Remove** | Deletes the last point placed. |
 | **Visibility** | Shows or hides the spheres. Ticks itself when the first sphere appears. |

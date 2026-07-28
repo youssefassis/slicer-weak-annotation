@@ -92,7 +92,7 @@ is kept free of `slicer`/`vtk`/`qt`/`ctk` so it can be tested without launching 
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest     # 39 tests, well under a second
+python -m pytest     # 46 tests, well under a second
 ruff check .         # lint, and the import boundary above
 ```
 

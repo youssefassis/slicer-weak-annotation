@@ -38,9 +38,26 @@ class TestDefaultThreshold:
     def test_a_fresh_volume_starts_a_third_of_the_way_up(self):
         assert rendering.default_threshold(0, 300) == pytest.approx(100)
 
+    def test_it_is_a_third_of_the_range_and_not_of_the_sum(self):
+        # `(min + max) / 3` agrees with a third of the way up only when min is 0, which is
+        # why the zero-based case above passed while every other volume drifted.
+        assert rendering.default_threshold(100, 200) == pytest.approx(133 + 1 / 3)
+        assert rendering.default_threshold(-1024, 3071) == pytest.approx(341)
+
+    def test_a_range_that_sits_high_still_starts_inside_it(self):
+        # The case that reached the slider as an out-of-range value and was clamped to the
+        # bottom, opening the volume fully opaque.
+        assert rendering.default_threshold(2000, 3000) == pytest.approx(2333 + 1 / 3)
+
     def test_it_stays_inside_the_range(self):
-        for low, high in [(0, 1), (-1000, 3000), (100, 200)]:
+        for low, high in [(0, 1), (-1000, 3000), (100, 200), (2000, 3000), (-2000, -100)]:
             assert low <= rendering.default_threshold(low, high) <= high
+
+    def test_it_is_strictly_inside_a_range_with_room_in_it(self):
+        # `low <= threshold` alone passes for a threshold pinned to the bottom of the range,
+        # which is the failure it is meant to catch.
+        for low, high in [(0, 1), (100, 200), (2000, 3000)]:
+            assert low < rendering.default_threshold(low, high) < high
 
 
 class TestScalarOpacityPoints:
@@ -55,11 +72,25 @@ class TestScalarOpacityPoints:
         # would be accepted by the list and then fail at AddPoint.
         assert all(len(point) == 4 for point in self.points(0, 1000, 500, 1.0))
 
-    def test_the_scalars_ascend(self):
-        # vtkPiecewiseFunction cannot represent a non-ascending node list.
+    def test_the_scalars_ascend_strictly(self):
+        # Strictly: `sorted` accepts a tie, and a tie is the actual failure. AddPoint at an x
+        # the function already holds replaces that node instead of adding one, so two equal
+        # scalars leave a one-node function — opaque everywhere, with no ramp at all.
         for threshold in [-500, 0, 1, 250, 999, 1000, 5000]:
             xs = [point[0] for point in self.points(0, 1000, threshold, 1.0)]
-            assert xs == sorted(xs), threshold
+            assert xs[0] < xs[1], threshold
+
+    def test_the_scalars_ascend_strictly_whatever_the_range(self):
+        ranges = [(0, 1000), (-1024, 3071), (-2000, -100), (1000, 2000), (2000, 3000), (0, 1)]
+        for min_value, max_value in ranges:
+            for threshold in [min_value, (min_value + max_value) / 2, max_value]:
+                xs = [point[0] for point in self.points(min_value, max_value, threshold, 1.0)]
+                assert xs[0] < xs[1], (min_value, max_value, threshold)
+
+    def test_a_constant_volume_still_gives_two_distinct_scalars(self):
+        # No span to ramp over, and still not allowed to hand AddPoint the same x twice.
+        xs = [point[0] for point in self.points(500, 500, 500, 1.0)]
+        assert xs[0] < xs[1]
 
     def test_the_ramp_reaches_the_requested_opacity(self):
         _, upper = self.points(0, 1000, 500, 0.7)
@@ -84,23 +115,28 @@ class TestScalarOpacityPoints:
     def test_a_threshold_below_the_range_is_clamped_into_it(self):
         lower, upper = self.points(0, 1000, -5000, 1.0)
         assert upper[0] == pytest.approx(0)
-        assert lower[0] == pytest.approx(0)
+        # And the lower node drops below the minimum rather than joining it there. Nothing in
+        # the volume is that dark, so the ramp is fully risen by the time it meets real data
+        # — which is what a threshold at the bottom of the range means.
+        assert lower[0] < 0
 
-    def test_the_ramp_never_leaves_the_range(self):
+    def test_the_threshold_never_leaves_the_range(self):
         for threshold in [-5000, 0, 500, 1000, 5000]:
-            for x, _, _, _ in self.points(0, 1000, threshold, 1.0):
-                assert 0 <= x <= 1000, threshold
+            _, upper = self.points(0, 1000, threshold, 1.0)
+            assert 0 <= upper[0] <= 1000, threshold
 
     def test_a_negative_range_still_ascends(self):
-        # CT in Hounsfield units starts around -1024, and the margin is a fraction of the
-        # maximum — which is the case where a naive `threshold - max/10` moves the wrong way.
+        # CT in Hounsfield units starts around -1024.
         xs = [point[0] for point in self.points(-1024, 3071, 200, 1.0)]
-        assert xs == sorted(xs)
-        assert all(-1024 <= x <= 3071 for x in xs)
+        assert xs[0] < xs[1]
+        assert xs[0] == pytest.approx(200 - (3071 + 1024) / 10)
 
     def test_a_range_with_a_negative_maximum_still_ascends(self):
+        # The margin taken from the maximum alone was negative here, which put the lower node
+        # above the upper one before the clamp dragged the two together.
         xs = [point[0] for point in self.points(-2000, -100, -500, 1.0)]
-        assert xs == sorted(xs)
+        assert xs[0] < xs[1]
+        assert xs[0] == pytest.approx(-500 - 190)
 
     def test_opacity_is_passed_through_untouched(self):
         # It used to be halved between the slider and the display node, so the top of the
@@ -110,8 +146,17 @@ class TestScalarOpacityPoints:
 
 
 class TestRampMargin:
-    def test_it_is_a_tenth_of_the_maximum(self):
-        assert rendering.ramp_margin(1000) == pytest.approx(100)
+    def test_it_is_a_tenth_of_the_span(self):
+        assert rendering.ramp_margin(0, 1000) == pytest.approx(100)
+
+    def test_the_span_is_measured_from_the_minimum_not_from_zero(self):
+        assert rendering.ramp_margin(1000, 2000) == pytest.approx(100)
+        assert rendering.ramp_margin(-1024, 3071) == pytest.approx(409.5)
+
+    def test_it_is_positive_for_a_range_that_is_entirely_negative(self):
+        # A margin of `max * fraction` was negative here, and a negative margin puts the foot
+        # of the ramp above its top.
+        assert rendering.ramp_margin(-2000, -100) == pytest.approx(190)
 
     def test_the_fraction_is_overridable(self):
-        assert rendering.ramp_margin(1000, fraction=0.5) == pytest.approx(500)
+        assert rendering.ramp_margin(0, 1000, fraction=0.5) == pytest.approx(500)

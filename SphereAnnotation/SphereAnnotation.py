@@ -102,8 +102,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #### Volume
         self.ui.load_volume_button.connect('clicked(bool)', self.load_volume)
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
-        self.ui.volumeOpacity.valueChanged.connect(self.onVolumeOpacityChanged)
-        self.ui.volumeThreshold.valueChanged.connect(self.onVolumeThresholdChanged)
+        self.ui.volumeOpacity.valueChanged.connect(self.applyOpacityRamp)
+        self.ui.volumeThreshold.valueChanged.connect(self.applyOpacityRamp)
 
         #### Annotations
         self.ui.load_annotations_button.connect('clicked(bool)', self.load_annotations_from_file)
@@ -120,6 +120,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # A scene closed from the File menu while the module is open would otherwise leave
         # every reference below pointing at a removed node.
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+        # And a single node deleted from the Data module has to stop being drawn.
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeRemovedEvent, self.onNodeRemoved)
 
     ############################################ Node ownership ############################################
 
@@ -174,12 +176,27 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.annotationsVisibility.checked = True
         return node
 
+    def annotationsDisplayNode(self):
+        """The display node of the spheres model, or ``None``.
+
+        A model node can outlive its display node — deleting one from the Data module is a
+        click — and all three appearance controls would otherwise raise on ``None`` every
+        time the annotator moved a slider.
+        """
+        model = self.currentModelNode()
+        if model is None:
+            return None
+        return model.GetDisplayNode()
+
     def pointsNodeObservations(self):
         """The events on a markups node that have to reach this widget, with their handlers."""
         return (
             (slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.draw_spheres),
             (slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.draw_spheres),
             (slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.move_spheres),
+            # The points are read in world coordinates, so a transform applied to the node
+            # moves every one of them without a single point event being fired.
+            (slicer.vtkMRMLTransformableNode.TransformModifiedEvent, self.move_spheres),
         )
 
     def adoptPointsNode(self, node):
@@ -218,15 +235,39 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def reset(self):
         """Remove what this module put in the scene, and nothing else."""
         self.releasePointsNodes()
-        for node in [self.currentModelNode(), self.currentVolumeNode(), *self.currentPointsNodes()]:
+        volNode = self.currentVolumeNode()
+        if volNode is not None:
+            self.removeVolumeRenderingNodes(volNode)
+        nodes = [self.currentModelNode(), volNode, *self.currentPointsNodes()]
+        # Forget first, then remove. Removing a node fires NodeRemovedEvent, and the handler
+        # for it redraws when one of the points nodes has gone — which, halfway through this
+        # loop, would put back the model node the first iteration just removed. With the
+        # references already dropped there is nothing left for it to redraw.
+        self.forgetSceneState()
+        for node in nodes:
             if node is not None:
                 slicer.mrmlScene.RemoveNode(node)
-        self.forgetSceneState()
 
     def onSceneEndClose(self, caller=None, event=None):
         """The scene was closed from the File menu: the nodes are already gone."""
         self.releasePointsNodes()
         self.forgetSceneState()
+
+    def onNodeRemoved(self, caller=None, event=None):
+        """A node left the scene. If it was one of ours, stop drawing its spheres.
+
+        :meth:`currentPointsNodes` drops the reference on its own, but nothing was asking it
+        to: a node deleted from the Data module left its spheres on screen until the next
+        point event on some other node happened to trigger a redraw.
+        """
+        if slicer.mrmlScene.IsBatchProcessing():
+            # A close or an import removes nodes wholesale. `onSceneEndClose` picks the state
+            # up afterwards; rebuilding the model here would put a node back into a scene
+            # that is in the middle of being emptied.
+            return
+        owned = len(self.pointsNodes)
+        if len(self.currentPointsNodes()) != owned:
+            self.draw_spheres()
 
     def cleanup(self):
         """Called when the widget is destroyed — a module reload, or Slicer closing.
@@ -242,6 +283,19 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if model is not None:
             slicer.mrmlScene.RemoveNode(model)
         self.forgetSceneState()
+
+    ############################################ Files ############################################
+
+    def promptForFile(self, caption, fileFilter):
+        """Ask the annotator to pick an existing file. ``None`` if they cancelled.
+
+        Through ``getOpenFileName`` rather than a bare ``QFileDialog``: that gives the
+        platform's own dialog, parents it to the main window so it cannot end up stranded
+        behind it, and lets Qt reopen it where the last one left off instead of in whatever
+        directory Slicer's process happens to have been started from.
+        """
+        path = qt.QFileDialog.getOpenFileName(slicer.util.mainWindow(), caption, "", fileFilter)
+        return Path(path) if path else None
 
     ############################################ Annotations ############################################
 
@@ -272,18 +326,39 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 node.RemoveNthControlPoint(count - 1)
                 return
 
+    def isAlreadyLoaded(self, path):
+        """Whether one of the annotations this module owns was read from ``path``.
+
+        Asked rather than enforced. Re-reading a file that has been edited on disk is a real
+        thing to want, and refusing it outright would be worse than the duplicate — but the
+        usual reason to pick the same file twice is not noticing it is open, and the result
+        is two identical sets of spheres drawn through each other with nothing to tell them
+        apart.
+        """
+        for node in self.currentPointsNodes():
+            storageNode = node.GetStorageNode()
+            if storageNode is None:
+                continue
+            fileName = storageNode.GetFileName()
+            if fileName and Path(fileName).resolve() == path.resolve():
+                return True
+        return False
+
     def load_annotations_from_file(self):
         """Load a markups file and adopt it as one of this module's annotations.
 
         Loading a second file does not replace the first: both are drawn, which is what makes
         two annotations of the same volume comparable side by side.
         """
-        dialog = qt.QFileDialog()
-        dialog.setNameFilters([MARKUPS_FILE_FILTER])
-        if dialog.exec_() != qt.QDialog.Accepted:
+        path = self.promptForFile("Load annotations", MARKUPS_FILE_FILTER)
+        if path is None:
             return
 
-        path = Path(dialog.selectedFiles()[0])
+        if self.isAlreadyLoaded(path) and not slicer.util.confirmYesNoDisplay(
+                f"{path.name} is already loaded.\n\nLoad a second copy of it?",
+                windowTitle="Sphere Annotation"):
+            return
+
         try:
             node = slicer.util.loadMarkups(str(path))
         except (RuntimeError, OSError) as error:
@@ -313,6 +388,12 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.applySphere(source, node, index)
                 self.spheres.append(source)
                 self.appender.AddInputConnection(source.GetOutputPort())
+
+        if not self.spheres and self.currentModelNode() is None:
+            # Nothing to draw, and nothing already drawn that needs clearing. Loading a
+            # markups file with no whole pair in it should not leave an empty "Annotations"
+            # model in the scene and tick a visibility box over it.
+            return
 
         model = self.ensureModelNode()
         if self.spheres:
@@ -347,55 +428,59 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.applySphere(next(source), node, index)
 
         if self.appender is not None:
+            # This is the only thing the redraw needs. Updating the appender modifies the
+            # polydata the model node was given in `draw_spheres`, the model node is
+            # observing it, and the displayable managers turn that into a render request
+            # that Slicer schedules at the view's own update rate.
+            #
+            # Which is why there is no `forceRenderAllViews()` here any more. It rendered
+            # every 2D and 3D view synchronously on every PointModifiedEvent — an event that
+            # also fires for the preview point tracking the cursor during place mode — so
+            # the drag ran at whatever a full render of the whole layout costs, with Slicer's
+            # own render throttling bypassed rather than used.
             self.appender.Update()
-        # Once per event, not once per sphere: the previous version re-rendered every view
-        # inside the loop, so a drag with ten spheres on screen paid for ten full renders.
-        slicer.util.forceRenderAllViews()
 
     def applySphere(self, source, node, index):
         """Point ``source`` at the sphere that control points ``2*index`` and ``2*index+1`` define."""
         first, second = spheres.point_indices(index)
-        a, b = np.empty(3), np.empty(3)
+        # Zeroed, not `np.empty`. GetNthControlPointPositionWorld logs and returns without
+        # writing when it does not like the index, and uninitialised memory then reaches
+        # vtkSphereSource as a centre — a sphere somewhere arbitrary, or a NaN radius that
+        # takes the whole append pipeline with it, instead of one visibly at the origin.
+        a, b = np.zeros(3), np.zeros(3)
         node.GetNthControlPointPositionWorld(first, a)
         node.GetNthControlPointPositionWorld(second, b)
         center, radius = spheres.center_and_radius(a, b)
         source.SetCenter(*center)
         source.SetRadius(radius)
-        source.Update()
+        # No `source.Update()`: the appender pulls the whole pipeline, and executing each
+        # source by hand first only re-tessellates them one at a time ahead of it.
 
     def set_annotations_visibility(self, state=None):
-        model = self.currentModelNode()
-        if model is not None:
-            model.GetDisplayNode().SetVisibility(self.ui.annotationsVisibility.checked)
+        displayNode = self.annotationsDisplayNode()
+        if displayNode is not None:
+            displayNode.SetVisibility(self.ui.annotationsVisibility.checked)
 
     def set_annotations_color(self, color=None):
-        model = self.currentModelNode()
-        if model is not None:
-            model.GetDisplayNode().SetColor(*rendering.to_rgb(self.ui.ColorPickerButton.color))
+        displayNode = self.annotationsDisplayNode()
+        if displayNode is not None:
+            displayNode.SetColor(*rendering.to_rgb(self.ui.ColorPickerButton.color))
 
     def set_annotations_opacity(self, value=None):
-        model = self.currentModelNode()
-        if model is not None:
+        displayNode = self.annotationsDisplayNode()
+        if displayNode is not None:
             # The slider value, not half of it. It used to be halved on the way through, so
             # the annotator could never get past 50% opacity however far right they dragged.
-            model.GetDisplayNode().SetOpacity(self.ui.annotationsOpacity.value)
+            displayNode.SetOpacity(self.ui.annotationsOpacity.value)
 
     ############################################ Volume ############################################
 
     def load_volume(self):
-        """Load a volume and set up its 3D rendering.
-
-        The volume this module loaded previously is removed to make room; anything else in
-        the scene is left alone. The previous version removed *every* scalar volume and every
-        ROI node — including the crop ROI belonging to whatever else the annotator had open.
-        """
-        dialog = qt.QFileDialog()
-        dialog.setNameFilters([VOLUME_FILE_FILTER])
-        if dialog.exec_() != qt.QDialog.Accepted:
+        """Load a volume from a file the annotator picks, and show it."""
+        path = self.promptForFile("Load volume", VOLUME_FILE_FILTER)
+        if path is None:
             return
 
-        path = Path(dialog.selectedFiles()[0])
-        previous = self.currentVolumeNode()
         try:
             # loadVolume hands the name straight to Qt, which cannot convert a Path.
             volNode = slicer.util.loadVolume(str(path))
@@ -404,7 +489,18 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.util.errorDisplay(f"Could not load the volume.\n\n{path.name}\n\n{error}")
             return
 
+        self.adoptVolumeNode(volNode)
+
+    def adoptVolumeNode(self, volNode):
+        """Take ownership of ``volNode``, set up its 3D rendering, and show it.
+
+        The volume this module loaded previously is removed to make room; anything else in
+        the scene is left alone. The previous version removed *every* scalar volume and every
+        ROI node — including the crop ROI belonging to whatever else the annotator had open.
+        """
+        previous = self.currentVolumeNode()
         if previous is not None:
+            self.removeVolumeRenderingNodes(previous)
             slicer.mrmlScene.RemoveNode(previous)
         self.volNode = volNode
 
@@ -415,11 +511,45 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
 
         min_value, max_value = volNode.GetImageData().GetScalarRange()
-        self.ui.volumeThreshold.minimum = min_value
-        self.ui.volumeThreshold.maximum = max_value
-        # Assigning `.value` emits valueChanged, which applies the ramp for us.
-        self.ui.volumeThreshold.value = rendering.default_threshold(min_value, max_value)
+        # Widen, then narrow. Assigning one end past the other drags that other end along and
+        # the value with it — setting `minimum = 2000` on a (0, 100) slider leaves it at
+        # (2000, 2000) with the value on top — so the pair must never be crossed, and
+        # ctkSliderWidget's atomic `setRange` is not exposed on the Python side.
+        slider = self.ui.volumeThreshold
+        slider.minimum = min(min_value, slider.minimum)
+        slider.maximum = max_value
+        slider.minimum = min_value
+        slider.value = rendering.default_threshold(min_value, max_value)
         self.ui.vol_visibility.checked = True
+
+        # Applied here rather than left to the assignments above, which only emit when the
+        # value actually *changes*. A second volume with the same scalar range as the first —
+        # the same protocol, the next patient — does not change the threshold, so nothing was
+        # emitted and the new display node kept the preset `UpdateDisplayNodeFromVolumeNode`
+        # gave it. Measured in Slicer 5.12.3: a five-node default ramp, while the two sliders
+        # went on claiming a threshold of 333 at full opacity. The controls described a volume
+        # that was not the one on screen.
+        #
+        # The visibility call is belt and braces rather than a fix: a rendering display node
+        # is created visible, so the box only has to be able to turn it *off*. Keeping the
+        # checkbox authoritative here costs nothing and means one less thing to re-derive.
+        self.applyOpacityRamp()
+        self.set_volume_visibility()
+
+    def removeVolumeRenderingNodes(self, volNode):
+        """Remove the rendering nodes that were created for ``volNode``.
+
+        ``RemoveNode`` on the volume does not take them with it. Without this, every volume
+        after the first left behind a display node, a volume property node and an ROI — in
+        the scene, in the subject hierarchy, and in the Save dialog the annotator then has to
+        read to find their own annotation.
+        """
+        displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode)
+        if not displayNode:
+            return
+        for node in (displayNode.GetVolumePropertyNode(), displayNode.GetROINode(), displayNode):
+            if node is not None:
+                slicer.mrmlScene.RemoveNode(node)
 
     def volumeRenderingDisplayNode(self):
         """The rendering display node for the volume this module loaded, or ``None``.
@@ -437,24 +567,19 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if displayNode is not None:
             displayNode.SetVisibility(self.ui.vol_visibility.checked)
 
-    def onVolumeThresholdChanged(self, value=None):
-        self.applyOpacityRamp()
-
-    def onVolumeOpacityChanged(self, value=None):
-        self.applyOpacityRamp()
-
-    def applyOpacityRamp(self):
+    def applyOpacityRamp(self, value=None):
         """Rewrite the scalar opacity ramp from the two sliders.
 
-        Both sliders rebuild the whole ramp. The opacity slider used to patch control point
-        number 1 in place, which only worked for as long as the threshold slider happened to
-        leave the upper point at that index.
+        Both sliders rebuild the whole ramp, and both are connected straight to this — the
+        ``value`` Qt hands over is read back off the widgets instead. The opacity slider used
+        to patch control point number 1 in place, which only worked for as long as the
+        threshold slider happened to leave the upper point at that index.
         """
         displayNode = self.volumeRenderingDisplayNode()
         if displayNode is None:
             return
         scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
-        min_value, max_value = self.volNode.GetImageData().GetScalarRange()
+        min_value, max_value = self.currentVolumeNode().GetImageData().GetScalarRange()
         points = rendering.scalar_opacity_points(min_value, max_value,
                                                  self.ui.volumeThreshold.value,
                                                  self.ui.volumeOpacity.value)
@@ -501,6 +626,10 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.test_clean_removes_only_this_modules_nodes()
         self.setUp()
         self.test_closing_the_scene_leaves_no_stale_references()
+        self.setUp()
+        self.test_a_second_volume_is_shown_like_the_first()
+        self.setUp()
+        self.test_deleting_a_points_node_stops_drawing_its_spheres()
 
     def widget(self):
         slicer.util.selectModule("SphereAnnotation")
@@ -509,6 +638,25 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
     def placePoints(self, node, *positions):
         for position in positions:
             node.AddControlPoint(vtk.vtkVector3d(*position))
+
+    def syntheticVolume(self, name):
+        """A tiny volume with a scalar range of exactly (0, 1000).
+
+        Two of these are indistinguishable to the threshold slider, which is the whole point:
+        it is the volume whose default threshold matches the one already on the slider that
+        exposes a control relying on a Qt signal it will not get.
+        """
+        volNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", name)
+        image = vtk.vtkImageData()
+        image.SetDimensions(4, 4, 4)
+        image.AllocateScalars(vtk.VTK_SHORT, 1)
+        volNode.SetAndObserveImageData(image)
+        array = slicer.util.arrayFromVolume(volNode)
+        array[:] = 0
+        array[2:, 2:, 2:] = 1000
+        slicer.util.arrayFromVolumeModified(volNode)
+        volNode.CreateDefaultDisplayNodes()
+        return volNode
 
     def test_opening_the_module_leaves_the_rest_of_the_scene_alone(self):
         """The regression that matters most: the module used to clear the scene on open."""
@@ -551,6 +699,17 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         widget.draw_spheres()
 
         self.assertEqual(len(widget.spheres), 0)
+        # And nothing was added to the scene to hold it. An empty model node reads as an
+        # annotation that exists and is invisible, which is not the state the annotator is in.
+        self.assertIsNone(widget.currentModelNode())
+
+        # Once a sphere has existed the model stays, and is emptied rather than removed.
+        self.placePoints(node, (10, 0, 0))
+        widget.draw_spheres()
+        node.RemoveNthControlPoint(1)
+        widget.draw_spheres()
+
+        self.assertEqual(len(widget.spheres), 0)
         self.assertEqual(widget.currentModelNode().GetPolyData().GetNumberOfPoints(), 0)
 
     def test_dragging_a_point_moves_its_sphere(self):
@@ -568,6 +727,16 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertAlmostEqual(widget.spheres[0].GetRadius(), 10.0)
         self.assertEqual(list(widget.spheres[0].GetCenter()), [10.0, 0.0, 0.0])
 
+        # And the geometry the *model node* holds moved with it. Nothing forces a render any
+        # more, so this is the chain the whole redraw rests on: the appender updates, the
+        # polydata the model observes is modified, and the displayable managers ask for a
+        # render. A sphere source that moved while the model's polydata did not would leave
+        # the annotator dragging a point that nothing follows.
+        bounds = [0.0] * 6
+        widget.currentModelNode().GetPolyData().GetBounds(bounds)
+        # Not 20.0 exactly — a 30-facet hull falls just inside its own radius.
+        self.assertAlmostEqual(bounds[1], 20.0, delta=0.1)
+
     def test_clean_removes_only_this_modules_nodes(self):
         self.delayDisplay("Clean removes only this module's nodes")
         widget = self.widget()
@@ -577,6 +746,9 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.placePoints(node, (0, 0, 0), (10, 0, 0))
         widget.draw_spheres()
         model = widget.currentModelNode()
+        widget.adoptVolumeNode(self.syntheticVolume("Ours"))
+        displayNode = widget.volumeRenderingDisplayNode()
+        propertyNode = displayNode.GetVolumePropertyNode()
 
         widget.clearButton()
 
@@ -584,6 +756,9 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertFalse(slicer.mrmlScene.IsNodePresent(node))
         self.assertFalse(slicer.mrmlScene.IsNodePresent(model))
         self.assertEqual(widget.currentPointsNodes(), [])
+        # Including the rendering nodes, which RemoveNode on the volume does not take with it.
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(displayNode))
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(propertyNode))
 
     def test_closing_the_scene_leaves_no_stale_references(self):
         self.delayDisplay("Closing the scene leaves no stale references")
@@ -599,3 +774,49 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.modelNode)
         self.assertEqual(widget.pointsNodes, [])
         self.assertEqual(widget.spheres, [])
+
+    def test_deleting_a_points_node_stops_drawing_its_spheres(self):
+        """Deleting the points from the Data module has to take their spheres with them."""
+        self.delayDisplay("Deleting a points node stops drawing its spheres")
+        widget = self.widget()
+
+        kept = widget.ensurePointsNode()
+        self.placePoints(kept, (0, 0, 0), (10, 0, 0))
+        deleted = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "Second annotation")
+        widget.adoptPointsNode(deleted)
+        self.placePoints(deleted, (50, 0, 0), (60, 0, 0))
+        self.assertEqual(len(widget.spheres), 2)
+
+        slicer.mrmlScene.RemoveNode(deleted)
+
+        self.assertEqual(len(widget.spheres), 1)
+        self.assertEqual(widget.currentPointsNodes(), [kept])
+        self.assertAlmostEqual(widget.spheres[0].GetCenter()[0], 5.0)
+
+    def test_a_second_volume_is_shown_like_the_first(self):
+        """The ramp may not depend on a widget value happening to change.
+
+        Both volumes here have the same scalar range, and **the sliders are not touched
+        between the two loads** — which is the whole scenario. The second volume's default
+        threshold is the value the slider already holds, so `valueChanged` never fires. The
+        module used to rely on that signal to reach the display node, and without it the new
+        volume kept the five-node preset `UpdateDisplayNodeFromVolumeNode` gave it while the
+        sliders went on describing the ramp the *first* volume got.
+        """
+        self.delayDisplay("A second volume is shown like the first")
+        widget = self.widget()
+
+        widget.adoptVolumeNode(self.syntheticVolume("First"))
+        widget.adoptVolumeNode(self.syntheticVolume("Second"))
+
+        displayNode = widget.volumeRenderingDisplayNode()
+        self.assertIsNotNone(displayNode)
+        self.assertTrue(displayNode.GetVisibility())
+
+        # The ramp is this module's — two nodes, the upper one where the sliders say.
+        scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
+        self.assertEqual(scalarOpacity.GetSize(), rendering.SCALAR_OPACITY_POINT_COUNT)
+        upper = [0.0] * 4
+        scalarOpacity.GetNodeValue(rendering.SCALAR_OPACITY_POINT_COUNT - 1, upper)
+        self.assertAlmostEqual(upper[0], widget.ui.volumeThreshold.value)
+        self.assertAlmostEqual(upper[1], widget.ui.volumeOpacity.value)
