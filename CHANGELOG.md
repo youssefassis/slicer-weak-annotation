@@ -71,6 +71,18 @@ made. See `docs/annotation-format.md`.
   assets together and the repository root stays down to the files that have to be there.
 - **The README was rewritten around getting a first sphere placed**, and the user guide gained
   the annotated panel screenshot and a symptom-to-cause table.
+- **The extension is named `SphereAnnotation`, like its module.** The CMake project was
+  `AneurysmAnnotation` while everything a user sees said `SphereAnnotation`; the subject stays
+  in `EXTENSION_CATEGORY`, which is where it belongs for a module that measures any
+  ball-shaped object.
+- **The extension wizard's placeholder metadata is gone.** `John Doe (AnyWare Corp.)`, "This
+  is an example of a simple extension" and two `example.com` image URLs are replaced by the
+  real contributor, a description of what the module does, and the icon and screenshot in
+  `docs/`. Those URLs resolve once the GitHub repository is public.
+- **The copyright holder is named.** Headers said "the SphereAnnotation authors"; they now say
+  Youssef Assis, as the README does. `LICENSE` is left as canonical Apache-2.0 text.
+- **The supported Slicer version is 5.12 or later**, the version actually tested, rather than
+  the whole 5.x line.
 
 ### Added
 

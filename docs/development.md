@@ -164,27 +164,40 @@ other** — the point of them is that they agree.
   slots and for the node-ownership accessors. Follow whichever side of the boundary you are on.
 - Filesystem paths are `pathlib.Path`, not `os.path` strings. Convert at the Qt boundary.
 
+## Settled
+
+Recorded here because the reasoning is not visible in the result, and because each of these
+was an open question long enough to be worth closing explicitly.
+
+- **The name is `SphereAnnotation`**, at both levels: the extension and its one module share
+  it, so the Extensions Manager, Slicer's module list and this tree all say the same word.
+  The aneurysm framing lives in `EXTENSION_CATEGORY`, not in the name — the module measures
+  any ball-shaped object. Renaming the module would have meant renaming its file, its class,
+  its directory and its `.ui` file together, since Slicer requires those to match; renaming
+  the CMake project meant one line.
+- **Supported Slicer is 5.12 or later**, the tested floor rather than a promise about the
+  whole 5.x line. See the note at the top of this page.
+- **The copyright holder is Youssef Assis**, stated in every source header and in the README.
+  `LICENSE` stays byte-identical to canonical Apache-2.0: its appendix is instructions for
+  writing a header, not a form, and editing it makes the file stop matching what licence
+  scanners look for.
+
 ## Open decisions
 
 These block a first tagged release and are the lab's calls, not something to fill in while
 working on the code.
 
-- **The extension metadata** in the top-level `CMakeLists.txt`, which still carries the
-  wizard's `John Doe (AnyWare Corp.)` contributor, `example.com` URLs and "This is an example
-  of a simple extension" as its description.
-- **The extension name**, which is currently four different things: the GitHub repository is
-  `slicer-weak-annotation`, the GitLab one `slicer-sphere-annotation`, the top-level CMake
-  project `AneurysmAnnotation`, and the module `SphereAnnotation`. The README and the docs use
-  the module's name because that is what a user sees in Slicer. Pick one and rename the rest —
-  note that renaming the module means renaming its file, its class, its directory and its
-  `.ui` file together, since Slicer requires them to match.
-- **The supported Slicer version.** Developed against 5.12.3. The README now says "Slicer 5"
-  rather than the old, untrue "4.11 or later", but that is a description of what is tested,
-  not a commitment. Confirm what the lab reviews with, then pin it in CI and say so.
-- **The copyright holder.** `LICENSE`'s appendix is unfilled and the source headers say "the
-  SphereAnnotation authors"; the MIT licence this replaced named "Assis Youssef". Loria is a
-  joint unit, so the holder may need to be Inria, CNRS and/or Université de Lorraine — confirm
-  with the lab, then set it consistently across the headers.
 - **A real icon for the extension.** `docs/extension-icon.png` is still the extension
   wizard's placeholder, not a picture of the module. `docs/module-panel.jpg` is a real
-  screenshot and could be the basis for one.
+  screenshot and could be the basis for one. `EXTENSION_ICONURL` already points at the
+  placeholder's path, so replacing the file is enough — no URL changes.
+- **Making the GitHub repository public.** All three URLs in `EXTENSION_HOMEPAGE`,
+  `EXTENSION_ICONURL` and `EXTENSION_SCREENSHOTURLS` resolve only once it is. Until then the
+  Extensions Manager entry would show a dead link and two blank images — and nothing fails at
+  build time to tell you so.
+- **Renaming the two repositories** to match the name above, if the hosted names should agree
+  with it: GitHub is `slicer-weak-annotation` and GitLab is `slicer-sphere-annotation`. This
+  is a host-side action, not a code change, but the three URLs in `CMakeLists.txt` and the
+  clone URL in the README hard-code the GitHub one and have to be re-pointed with it. GitHub
+  redirects renamed repositories, so nothing breaks the moment it happens; the redirect is
+  not something to rely on permanently.
