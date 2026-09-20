@@ -1,14 +1,16 @@
 # Changelog
 
 All notable changes to this project are documented here, following
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has not been
-released yet; once it is, versions follow [Semantic Versioning](https://semver.org/).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
+[Semantic Versioning](https://semver.org/).
 
 Note that the **annotation convention is not versioned** — nothing in a saved file declares
 it — so a change to the point-pairing rule is a breaking change for every annotation ever
 made. See `docs/annotation-format.md`.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-09-20
 
 ### Fixed
 
