@@ -12,7 +12,7 @@
 [project]
 name = "sphereannotation"
 version = "0.1.0"
-description = "Sphere annotation of aneurysms from paired points, as a 3D Slicer extension"
+description = "Sphere annotation of any ball-shaped object from paired points, as a 3D Slicer extension"
 readme = "README.md"
 license = "Apache-2.0"
 # The floor is the oldest interpreter this code is actually run on, which is CI's

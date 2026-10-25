@@ -1,6 +1,7 @@
 # User guide
 
-The module appears in Slicer as **Sphere Annotation**, under the *Aneurysms* category.
+The module appears in Slicer as **Sphere Annotation**, under the *Annotation* category. It works on
+any ball-shaped object; the examples below use the aneurysms of the bundled sample case.
 
 You place **two points per sphere**, at opposite ends of a diameter. The sphere appears
 between them and follows either point as you drag it. That is the whole interaction, and the
@@ -11,10 +12,10 @@ whole [file format](annotation-format.md).
 ## Your first sphere
 
 1. **Volume → Load**, and pick a `.nii` or `.nii.gz` angiogram.
-2. Drag **Threshold** until the vessels stand out.
-3. **Annotations → Create**, then click one edge of the aneurysm.
+2. Drag **Threshold** until the structures you are labelling stand out.
+3. **Annotations → Create**, then click one edge of the object.
 4. **Create** again, then click the opposite edge. The sphere appears.
-5. Drag either point until the sphere covers the aneurysm.
+5. Drag either point until the sphere covers the object.
 6. **Save**.
 
 Nothing is drawn after step 3, and that is correct — one point does not define a sphere, and
@@ -22,7 +23,7 @@ the module will not guess the second.
 
 <img width=48% src="images/step-2-one-point.png" alt="One point placed: no sphere"> <img width=48% src="images/step-3-sphere.png" alt="The second point placed: the sphere appears">
 
-*One point, then two.* No angiogram to hand? A synthetic one ships with the module — see
+*One point, then two.* No volume to hand? A synthetic angiogram ships with the module — see
 [`data/`](../data/README.md), which is what these figures use.
 
 Getting a sphere right usually means nudging both points across two or three slice views. That
@@ -95,4 +96,4 @@ that form a pair** is safe.
 Closing the scene from the File menu takes everything with it, as it does for any module.
 
 The spheres are also drawn as outlines on the 2D slice views, which is usually the easier
-place to judge whether one actually covers the aneurysm.
+place to judge whether one actually covers the object.

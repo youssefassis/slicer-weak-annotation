@@ -1,9 +1,9 @@
 # Documentation
 
 **Sphere Annotation** is a 3D Slicer scripted module (shown as **Sphere Annotation**, under
-*Aneurysms*). It annotates aneurysms — or any ball-shaped object — with spheres: you place
-**two points per sphere**, at opposite ends of a diameter, and the sphere follows either point
-as you drag it.
+*Annotation*). It annotates any ball-shaped object — aneurysms, nodules, lesions, cells —
+with spheres: you place **two points per sphere**, at opposite ends of a diameter, and the
+sphere follows either point as you drag it.
 
 ## Where to start
 

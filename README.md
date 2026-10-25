@@ -4,8 +4,9 @@
 > [gitlab.inria.fr/yassis/slicer-sphere-annotation](https://gitlab.inria.fr/yassis/slicer-sphere-annotation),
 > developed at the [Loria](https://www.loria.fr/) lab.
 
-A [3D Slicer](https://www.slicer.org/) extension for annotating intracranial aneurysms — or
-any ball-shaped object — with spheres.
+A [3D Slicer](https://www.slicer.org/) extension for annotating any ball-shaped object in a 3D
+volume with spheres — aneurysms, nodules, lesions, cells, or whatever your labelling project
+is about. Nothing in it is specific to one anatomy or one kind of image.
 
 **You place two points; you get a sphere.** The two points sit at opposite ends of a
 diameter, so the sphere appears between them and follows either one as you drag it. That is
@@ -41,16 +42,17 @@ Then either point Slicer at it for one session:
 module paths**, and restart Slicer.
 
 Either way the module then appears in the module list as **Sphere Annotation**, under
-*Aneurysms*.
+*Annotation*.
 
 ## Your first annotation
 
-**No angiogram to hand?** A synthetic one ships with the module — see
-[`data/`](data/README.md). Everything below is shown on it.
+**No volume to hand?** A synthetic angiogram with three aneurysms ships with the module — see
+[`data/`](data/README.md). Everything below is shown on it; on your own data, read
+"aneurysm" as whatever you are labelling.
 
 1. **Volume → Load.** Pick a `.nii` or `.nii.gz` angiogram. It appears in the 3D view.
 2. Drag **Threshold** until the vessels stand out. This is the one control worth playing
-   with — it is what turns the volume into a vessel tree you can aim at.
+   with — it is what hides the background so you can see what you are aiming at.
 
    <img width=70% src="docs/images/step-1-volume.png" alt="A vessel tree in the 3D view after loading a volume and setting the threshold">
 
@@ -81,7 +83,7 @@ The [user guide](docs/user-guide.md) covers every control, and the parts that su
 
 ## What you can do with it
 
-- Annotate any number of aneurysms in one volume, each with two clicks.
+- Annotate any number of objects in one volume, each with two clicks.
 - Adjust position and size by dragging points in the 3D view or on the 2D slices.
 - Set the colour and opacity of the spheres, and hide them without deleting them.
 - **Load two annotations at once** and compare them side by side — a second **Load** adds to

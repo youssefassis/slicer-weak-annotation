@@ -29,7 +29,7 @@ ANNOTATIONS_MODEL_NAME = "Annotations"
 POINTS_NODE_NAME = "Sphere annotation points"
 
 #: Facets per sphere, both directions. Enough that a sphere reads as a sphere at the zoom an
-#: aneurysm is annotated at, without making the append pipeline the bottleneck while dragging.
+#: object is annotated at, without making the append pipeline the bottleneck while dragging.
 SPHERE_RESOLUTION = 30
 
 #: Width of the sphere outlines drawn on the 2D slice views, in screen pixels.
@@ -49,14 +49,14 @@ class SphereAnnotation(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "Sphere Annotation"
-        self.parent.categories = ["Aneurysms"]
+        self.parent.categories = ["Annotation"]
         self.parent.dependencies = []
         self.parent.contributors = ["Youssef Assis (Loria lab.)"]
         self.parent.helpText = (
-            "Annotate aneurysms — or any ball-shaped object — with spheres. Each consecutive "
-            "pair of markup points defines one sphere, placed at their midpoint with a radius "
-            "of half their separation, so a sphere is resized by dragging either point in any "
-            "view. See docs/user-guide.md."
+            "Annotate any ball-shaped object — aneurysms, nodules, lesions, cells — with "
+            "spheres. Each consecutive pair of markup points defines one sphere, placed at their "
+            "midpoint with a radius of half their separation, so a sphere is resized by dragging "
+            "either point in any view. See docs/user-guide.md."
         )
         self.parent.acknowledgementText = "This module was developed by Youssef Assis."
 
