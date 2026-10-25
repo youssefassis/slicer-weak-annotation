@@ -48,9 +48,7 @@ CSV_FILE_FILTER = "CSV (*.csv)"
 #: volume reader handles. DICOM is not here on purpose — a series is loaded through Slicer's
 #: DICOM module and then picked from the volume selector. "All files" is the escape hatch for
 #: anything else ``loadVolume`` can read.
-VOLUME_FILE_FILTER = (
-    "Volumes (*.nrrd *.nhdr *.nii *.nii.gz *.mha *.mhd *.hdr *.img *.tif *.tiff);;All files (*)"
-)
+VOLUME_FILE_FILTER = "Volumes (*.nrrd *.nhdr *.nii *.nii.gz *.mha *.mhd *.hdr *.img *.tif *.tiff);;All files (*)"
 
 
 class SphereAnnotation(ScriptedLoadableModule):
@@ -108,7 +106,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Load widget from .ui file (created by Qt Designer). `self.ui.<name>` mirrors the Qt
         # Designer object names exactly, so renaming a widget there breaks this side silently.
-        uiWidget = slicer.util.loadUI(self.resourcePath('UI/SphereAnnotation.ui'))
+        uiWidget = slicer.util.loadUI(self.resourcePath("UI/SphereAnnotation.ui"))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         uiWidget.setMRMLScene(slicer.mrmlScene)
@@ -116,23 +114,23 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #### Volume
         self.ui.volumeSelector.setMRMLScene(slicer.mrmlScene)
         self.ui.volumeSelector.currentNodeChanged.connect(self.onVolumeSelected)
-        self.ui.load_volume_button.connect('clicked(bool)', self.load_volume)
+        self.ui.load_volume_button.connect("clicked(bool)", self.load_volume)
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
         self.ui.volumeOpacity.valueChanged.connect(self.applyOpacityRamp)
         self.ui.volumeThreshold.valueChanged.connect(self.applyOpacityRamp)
 
         #### Annotations
-        self.ui.load_annotations_button.connect('clicked(bool)', self.load_annotations_from_file)
+        self.ui.load_annotations_button.connect("clicked(bool)", self.load_annotations_from_file)
         self.ui.annotationsVisibility.stateChanged.connect(self.set_annotations_visibility)
         self.ui.annotationsOpacity.valueChanged.connect(self.set_annotations_opacity)
         self.ui.ColorPickerButton.colorChanged.connect(self.set_annotations_color)
 
-        self.ui.addButton.connect('clicked(bool)', self.create_point)
-        self.ui.deleteButton.connect('clicked(bool)', self.remove_point)
+        self.ui.addButton.connect("clicked(bool)", self.create_point)
+        self.ui.deleteButton.connect("clicked(bool)", self.remove_point)
 
-        self.ui.saveButton.connect('clicked(bool)', self.saveButton)
-        self.ui.exportButton.connect('clicked(bool)', self.export_spheres)
-        self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
+        self.ui.saveButton.connect("clicked(bool)", self.saveButton)
+        self.ui.exportButton.connect("clicked(bool)", self.export_spheres)
+        self.ui.cleanButton.connect("clicked(bool)", self.clearButton)
 
         # A scene closed from the File menu while the module is open would otherwise leave
         # every reference below pointing at a removed node.
@@ -373,8 +371,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
 
         if self.isAlreadyLoaded(path) and not slicer.util.confirmYesNoDisplay(
-                f"{path.name} is already loaded.\n\nLoad a second copy of it?",
-                windowTitle="Sphere Annotation"):
+            f"{path.name} is already loaded.\n\nLoad a second copy of it?", windowTitle="Sphere Annotation"
+        ):
             return
 
         try:
@@ -640,9 +638,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
         scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
         min_value, max_value = self.currentVolumeNode().GetImageData().GetScalarRange()
-        points = rendering.scalar_opacity_points(min_value, max_value,
-                                                 self.ui.volumeThreshold.value,
-                                                 self.ui.volumeOpacity.value)
+        points = rendering.scalar_opacity_points(
+            min_value, max_value, self.ui.volumeThreshold.value, self.ui.volumeOpacity.value
+        )
         scalarOpacity.RemoveAllPoints()
         for x, y, midpoint, sharpness in points:
             scalarOpacity.AddPoint(x, y, midpoint, sharpness)
@@ -680,8 +678,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         unpaired = [name for name, positions in annotations if spheres.has_unpaired_point(len(positions))]
         if unpaired:
             slicer.util.warningDisplay(
-                "The last point of these annotations has no partner and was not exported:\n\n"
-                + "\n".join(unpaired), windowTitle="Sphere Annotation")
+                "The last point of these annotations has no partner and was not exported:\n\n" + "\n".join(unpaired),
+                windowTitle="Sphere Annotation",
+            )
 
     def pointPositions(self, node):
         """The world positions of every control point of ``node``, in order."""
@@ -981,5 +980,6 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertEqual(len(rows), len(widget.spheres))
         self.assertEqual(rows[0]["label"], node.GetName())
         self.assertAlmostEqual(rows[0]["radius"], widget.spheres[0].GetRadius())
-        self.assertEqual([rows[0]["center_r"], rows[0]["center_a"], rows[0]["center_s"]],
-                         list(widget.spheres[0].GetCenter()))
+        self.assertEqual(
+            [rows[0]["center_r"], rows[0]["center_a"], rows[0]["center_s"]], list(widget.spheres[0].GetCenter())
+        )

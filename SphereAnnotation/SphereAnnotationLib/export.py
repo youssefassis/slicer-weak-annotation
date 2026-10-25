@@ -27,14 +27,16 @@ def sphere_rows(annotations):
         for index in range(spheres.sphere_count(len(positions))):
             first, second = spheres.point_indices(index)
             center, radius = spheres.center_and_radius(positions[first], positions[second])
-            rows.append({
-                "label": label,
-                "sphere": index,
-                "center_r": float(center[0]),
-                "center_a": float(center[1]),
-                "center_s": float(center[2]),
-                "radius": radius,
-            })
+            rows.append(
+                {
+                    "label": label,
+                    "sphere": index,
+                    "center_r": float(center[0]),
+                    "center_a": float(center[1]),
+                    "center_s": float(center[2]),
+                    "radius": radius,
+                }
+            )
     return rows
 
 

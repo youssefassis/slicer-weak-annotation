@@ -267,8 +267,10 @@ def annotation_file():
     """
     positions = [point for target in TARGETS for point in (target["base"], target["tip"])]
     return {
-        "@schema": "https://raw.githubusercontent.com/slicer/slicer/master/Modules/Loadable/"
-                   "Markups/Resources/Schema/markups-schema-v1.0.3.json#",
+        "@schema": (
+            "https://raw.githubusercontent.com/slicer/slicer/master/Modules/Loadable/"
+            "Markups/Resources/Schema/markups-schema-v1.0.3.json#"
+        ),
         "markups": [
             {
                 "type": "Fiducial",
@@ -293,8 +295,9 @@ def main():
     annotation_path = OUT_DIR / ANNOTATION_NAME
     annotation_path.write_text(json.dumps(annotation_file(), indent=2) + "\n")
 
-    print(f"{volume_path}: {shape[0]}x{shape[1]}x{shape[2]} at {SPACING} mm, "
-          f"{volume_path.stat().st_size / 1024:.0f} KiB")
+    print(
+        f"{volume_path}: {shape[0]}x{shape[1]}x{shape[2]} at {SPACING} mm, {volume_path.stat().st_size / 1024:.0f} KiB"
+    )
     print(f"{annotation_path}: {len(TARGETS)} spheres from {2 * len(TARGETS)} control points")
 
 

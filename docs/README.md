@@ -30,6 +30,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest        # Slicer-free suite; 65 tests, well under a second
 python -m pytest -k center_and_radius
 ruff check .            # lint + the Slicer-free import boundary
+ruff format .           # formatting, checked in CI with --check
 ```
 
 Running the module itself needs Slicer, which is not installed on every dev machine:
@@ -87,8 +88,8 @@ reintroduces a specific defect, so change them deliberately rather than in passi
 
 ## Working here
 
-- Keep `pytest` and `ruff check .` green; both are CI-gated on both remotes. Lint exemptions
-  need a comment giving the reason, as the existing ones do.
+- Keep `pytest`, `ruff check .` and `ruff format --check .` green; all are CI-gated on both
+  remotes. Lint exemptions need a comment giving the reason, as the existing ones do.
 - Add new `SphereAnnotationLib` modules to `MODULE_PYTHON_SCRIPTS` in
   `SphereAnnotation/CMakeLists.txt`, or they work in development and vanish from the packaged
   extension.
