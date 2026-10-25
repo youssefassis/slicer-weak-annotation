@@ -13,6 +13,9 @@ whole [file format](annotation-format.md).
 
 1. **Volume → Load**, and pick a `.nii` or `.nii.gz` angiogram.
 2. Drag **Threshold** until the structures you are labelling stand out.
+
+   <img width=70% src="images/step-1-volume.png" alt="A vessel tree in the 3D view after loading a volume and setting the threshold">
+
 3. **Annotations → Create**, then click one edge of the object.
 4. **Create** again, then click the opposite edge. The sphere appears.
 5. Drag either point until the sphere covers the object.
@@ -87,6 +90,7 @@ that form a pair** is safe.
 
 | what you see | why |
 | --- | --- |
+| A sphere is hidden inside the object | At full volume opacity the object hides a sphere that fits it exactly. Turn **Volume → Opacity** down to see one against the other. |
 | A sphere you expected is missing | An odd number of points — one sphere is half-placed. Place its second point, or **Remove** the stray one. |
 | The spheres shifted after you deleted a point | You deleted an interior point, which re-pairs everything after it. Undo, and delete whole pairs instead. |
 | A sphere has no size | Its two points are on top of each other. Drag one out. |
