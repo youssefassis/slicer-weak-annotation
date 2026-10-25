@@ -1,21 +1,13 @@
-# Keeps the pins in requirements-dev.txt and the actions in checks.yml current without
-# anyone remembering to look. Mirrors the policy in the other repositories.
+# Keeps the actions in checks.yml current without anyone remembering to look.
+#
+# Only GitHub Actions: requirements-dev.txt gives minimum versions rather than pins, so every
+# install already gets the newest numpy, pytest and ruff and there is nothing to bump there.
 
 version: 2
 updates:
-  # One grouped PR a week keeps the noise down; majors still come in alone,
-  # since the repo's rule is that they need a compatibility check first.
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      minor-and-patch:
-        update-types: [minor, patch]
-
-  # checks.yml pins actions/checkout, actions/setup-python and actions/upload-artifact;
-  # this is what notices when those majors move.
+  # checks.yml pins actions/checkout, actions/setup-python and actions/upload-artifact by
+  # major version; this is what notices when those majors move. Each major arrives as its own
+  # PR, since the repo's rule is that a major needs a compatibility check first.
   - package-ecosystem: github-actions
     directory: /
     schedule:
