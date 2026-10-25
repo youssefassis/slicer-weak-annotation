@@ -105,6 +105,14 @@ module, and it is the annotator's choice, not a search. Such a volume is **borro
 replaces it — leaves it in the scene. `self.ownsRenderingNodes` does the same for its volume
 rendering nodes: removed only if the module created them, otherwise just hidden.
 
+The selector talks back. A node removed from the scene makes it re-emit its selection, or move
+to a neighbouring volume if the removed node *was* the selection — so the module's own removals
+happen with its signals blocked (`releaseVolumeNode`), and a volume deleted from elsewhere is
+let go of on `NodeAboutToBeRemovedEvent`, which reaches observers before the selector moves.
+Handled any later, the module adopts a volume nobody picked. Both measured in Slicer 5.12.4,
+and guarded by `test_picking_a_volume_replaces_a_loaded_one` and
+`test_deleting_the_shown_volume_adopts_no_other`.
+
 Keep it that way: a `getNodesByClass` in this file is a bug waiting for someone who had their
 own volume loaded. `test_opening_the_module_leaves_the_rest_of_the_scene_alone` is the guard.
 
