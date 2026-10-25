@@ -27,7 +27,7 @@ The rest of this page is for people changing the code.
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest        # Slicer-free suite; 58 tests, well under a second
+python -m pytest        # Slicer-free suite; 65 tests, well under a second
 python -m pytest -k center_and_radius
 ruff check .            # lint + the Slicer-free import boundary
 ```

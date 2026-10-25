@@ -67,6 +67,10 @@ Note that `.mrk.json` records a `coordinateSystem` — `"LPS"` or `"RAS"`. Slice
 default while the module works in RAS, so a reader outside Slicer must honour that field
 rather than assuming. Slicer itself converts on load.
 
+Or skip the arithmetic: **Export CSV** writes the spheres themselves, one row per sphere
+with `label,sphere,center_r,center_a,center_s,radius`, already in RAS. That table is derived
+from the points and never read back — the markups file stays the annotation.
+
 ## Changing this
 
 The convention is not versioned and nothing in a file declares it. A change to the pairing

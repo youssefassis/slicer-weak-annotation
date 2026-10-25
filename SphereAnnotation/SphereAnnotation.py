@@ -19,7 +19,7 @@ import slicer
 import vtk
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
-from SphereAnnotationLib import rendering, spheres
+from SphereAnnotationLib import export, rendering, spheres
 
 #: Name of the model node holding the drawn spheres. A display name only — the module finds
 #: the node through ``self.modelNode``, never by searching the scene for this string.
@@ -40,6 +40,9 @@ SLICE_INTERSECTION_THICKNESS = 3
 #: ``.fcsv`` is the legacy format earlier annotations were stored in. The filter used to name
 #: only ``*.Fcsv``, which matches neither on a case-sensitive filesystem.
 MARKUPS_FILE_FILTER = "Markups (*.mrk.json *.fcsv)"
+
+#: File filter for the sphere table **Export CSV** writes.
+CSV_FILE_FILTER = "CSV (*.csv)"
 
 #: Slicer's file filter for the volumes this module loads: the single-file formats Slicer's
 #: volume reader handles. DICOM is not here on purpose — a series is loaded through Slicer's
@@ -128,6 +131,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.deleteButton.connect('clicked(bool)', self.remove_point)
 
         self.ui.saveButton.connect('clicked(bool)', self.saveButton)
+        self.ui.exportButton.connect('clicked(bool)', self.export_spheres)
         self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
 
         # A scene closed from the File menu while the module is open would otherwise leave
@@ -649,6 +653,45 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Open Slicer's Save Data dialog, from which the markups nodes are written out."""
         slicer.util.openSaveDataDialog()
 
+    def export_spheres(self):
+        """Write every sphere this module draws to a CSV file the annotator picks.
+
+        One annotation per points node, labelled with the node's name. A trailing unpaired
+        point is not a sphere and is left out — said out loud, since a missing row is
+        otherwise easy to mistake for a missing annotation.
+        """
+        nodes = self.currentPointsNodes()
+        if not nodes:
+            slicer.util.infoDisplay("There are no annotations to export yet.", windowTitle="Sphere Annotation")
+            return
+        path = qt.QFileDialog.getSaveFileName(slicer.util.mainWindow(), "Export spheres", "", CSV_FILE_FILTER)
+        if not path:
+            return
+        path = Path(path)
+
+        annotations = [(node.GetName(), self.pointPositions(node)) for node in nodes]
+        try:
+            export.write_csv(path, export.sphere_rows(annotations))
+        except OSError as error:
+            logging.exception("Could not write spheres to %s", path)
+            slicer.util.errorDisplay(f"Could not export the spheres.\n\n{path.name}\n\n{error}")
+            return
+
+        unpaired = [name for name, positions in annotations if spheres.has_unpaired_point(len(positions))]
+        if unpaired:
+            slicer.util.warningDisplay(
+                "The last point of these annotations has no partner and was not exported:\n\n"
+                + "\n".join(unpaired), windowTitle="Sphere Annotation")
+
+    def pointPositions(self, node):
+        """The world positions of every control point of ``node``, in order."""
+        positions = []
+        for index in range(node.GetNumberOfControlPoints()):
+            position = np.zeros(3)
+            node.GetNthControlPointPositionWorld(index, position)
+            positions.append(position)
+        return positions
+
     def clearButton(self):
         """The Clean button: remove this module's volume, points and spheres from the scene.
 
@@ -690,6 +733,8 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.test_clean_leaves_a_picked_volume_in_the_scene()
         self.setUp()
         self.test_picking_a_volume_replaces_a_loaded_one()
+        self.setUp()
+        self.test_exported_rows_match_the_drawn_spheres()
 
     def widget(self):
         slicer.util.selectModule("SphereAnnotation")
@@ -921,3 +966,20 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertTrue(slicer.mrmlScene.IsNodePresent(picked))
         self.assertIs(widget.currentVolumeNode(), other)
         self.assertFalse(slicer.mrmlScene.IsNodePresent(firstDisplayNode))
+
+    def test_exported_rows_match_the_drawn_spheres(self):
+        """Export reads the same world positions the spheres are drawn from."""
+        self.delayDisplay("Exported rows match the drawn spheres")
+        widget = self.widget()
+
+        node = widget.ensurePointsNode()
+        self.placePoints(node, (0, 0, 0), (10, 0, 0), (40, 0, 0))
+        widget.draw_spheres()
+
+        rows = export.sphere_rows([(node.GetName(), widget.pointPositions(node))])
+
+        self.assertEqual(len(rows), len(widget.spheres))
+        self.assertEqual(rows[0]["label"], node.GetName())
+        self.assertAlmostEqual(rows[0]["radius"], widget.spheres[0].GetRadius())
+        self.assertEqual([rows[0]["center_r"], rows[0]["center_a"], rows[0]["center_s"]],
+                         list(widget.spheres[0].GetCenter()))
