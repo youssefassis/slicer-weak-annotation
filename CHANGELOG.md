@@ -10,6 +10,8 @@ made. See `docs/annotation-format.md`.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
 ### Added
 
 - **A volume selector beside Volume → Load** picks a volume that is already in the scene —
