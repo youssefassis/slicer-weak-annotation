@@ -7,9 +7,9 @@ This is the thing to internalise before anything else.
 |  | Slicer's Python | Your dev Python |
 | --- | --- | --- |
 | Runs | the module, in the GUI | `pytest`, `ruff` |
-| Provides | numpy, VTK, Qt, CTK, `slicer` | whatever `requirements-dev.txt` pins |
+| Provides | numpy, VTK, Qt, CTK, `slicer` | the latest of what `requirements-dev.txt` lists |
 | Managed by | the Slicer installer | you |
-| Targeted at | Slicer 5.12.3 | 3.11, numpy 2.4.6 |
+| Targeted at | Slicer 5.12 or later | Python 3.11 or later |
 
 Slicer's interpreter is typically **newer** than a dev machine's, not older. Check what your
 install actually ships from Slicer's own Python console (*View → Python Console*):
@@ -19,14 +19,14 @@ import sys, numpy, vtk
 print(sys.version, numpy.__version__, vtk.vtkVersion.GetVTKVersion())
 ```
 
-`requirements-dev.txt` pins numpy to the version recorded for Slicer 5.12.3, so the tests
-exercise the array behaviour the module will actually meet. **Re-check it against your own
-install with the snippet above** before trusting the pin — and update the pin, not the code,
-if the supported Slicer version moves.
+`requirements-dev.txt` gives minimum versions, not pins, so the tests run against the newest
+numpy rather than the one your Slicer ships. `SphereAnnotationLib` uses only long-stable numpy
+(`asarray`, `linalg.norm`), so the two agree in practice; if a test ever passes outside Slicer
+and the same logic misbehaves inside it, compare the versions with the snippet above first.
 
 You do **not** pip-install into Slicer. Extensions are loaded from disk, and Slicer supplies
 their dependencies. That is why `pyproject.toml` declares no runtime dependencies and no
-build backend — a pin there would describe nothing real. `requirements-dev.txt` is only for
+build backend — a dependency listed there would describe nothing real. `requirements-dev.txt` is only for
 running the tests and linter outside Slicer.
 
 It also means **reproducibility comes from pinning the Slicer version**, not from pinning
