@@ -9,10 +9,10 @@ The volume is the same phantom the sibling ReformatViz extension ships, drawn fr
 constants, so the two projects can be demonstrated on one case. Only the NIfTI ``descrip``
 string differs; the voxels are identical.
 
-Both files come out of :data:`SACS` below, so the annotation cannot drift away from the sacs
-drawn in the image: the same ostium and dome are what get rasterised *and* what get written as
-the two control points of a sphere. That join is the whole reason the sample is worth
-shipping — the sphere the module derives from a pair lands **on** the sac, not near it.
+Both files come out of :data:`TARGETS` below, so the annotation cannot drift away from the
+targets drawn in the image: the same base and tip are what get rasterised *and* what get
+written as the two control points of a sphere. That join is the whole reason the sample is worth
+shipping — the sphere the module derives from a pair lands **on** the target, not near it.
 
 The output is deterministic: same constants, same bytes. Regenerating it should leave
 ``git status`` clean.
@@ -37,8 +37,8 @@ import numpy as np
 #: Where the case is written, relative to the repository root.
 OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "sample_case"
 
-VOLUME_NAME = "angio.nii.gz"
-ANNOTATION_NAME = "aneurysms.mrk.json"
+VOLUME_NAME = "volume.nii.gz"
+ANNOTATION_NAME = "annotation.mrk.json"
 
 #: Voxel size in mm, isotropic — around what a 3D-rotational angiogram is reconstructed at.
 SPACING = 0.5
@@ -51,7 +51,7 @@ BOUNDS = ((-34.0, 34.0), (-30.0, 30.0), (-20.0, 30.0))
 #: Intensities. Arbitrary units, like an angiogram that has been windowed: dark tissue,
 #: bright contrast-filled lumen.
 BACKGROUND = 40
-VESSEL = 900
+FOREGROUND = 900
 
 #: Peak-to-peak amplitude of the background texture, and how many voxels one grain spans.
 #: Grainy rather than per-voxel noise: it looks like an acquisition and it compresses, which
@@ -96,33 +96,34 @@ VESSELS = (
     (1.1, ((0, -13.5, 2), (-5, -13, 4), (-11, -11, 6), (-16, -13, 8))),
 )
 
-#: The aneurysms. Each is drawn as a sac from its ostium to its dome *and* written to the
-#: annotation as that same pair of control points, so the module's sphere lands on the sac.
+#: The objects to annotate — aneurysm-like bulges off the vessels. Each is drawn as a sphere
+#: from its base on the vessel wall to its tip *and* written to the annotation as that same
+#: pair of control points, so the module's sphere lands on the target.
 #:
 #: ``note`` is for ``data/README.md``; it is not written to the annotation, because the format
 #: has nowhere to put per-sphere information — see docs/annotation-format.md.
-SACS = (
+TARGETS = (
     {
-        "ostium": (24.0, 3.5, 6.8),
-        "dome": (29.0, 2.6, 9.0),
+        "base": (24.0, 3.5, 6.8),
+        "tip": (29.0, 2.6, 9.0),
         "note": "right MCA bifurcation, 5.5 mm — the unmistakable one",
     },
     {
-        "ostium": (0.0, 12.0, 8.0),
-        "dome": (0.8, 15.7, 11.2),
+        "base": (0.0, 12.0, 8.0),
+        "tip": (0.8, 15.7, 11.2),
         "note": "anterior communicating artery, 5.0 mm, pointing anterosuperiorly",
     },
     {
-        "ostium": (-14.5, 6.0, 4.9),
-        "dome": (-16.6, 7.4, 6.1),
+        "base": (-14.5, 6.0, 4.9),
+        "tip": (-16.6, 7.4, 6.1),
         "note": "left ICA terminus, 2.8 mm — small enough to be a genuine judgement call",
     },
 )
 
-#: Drawn, but deliberately not annotated: a bright thing that is not an aneurysm. It gives the
+#: Drawn, but deliberately not annotated: a bright thing that is not a target. It gives the
 #: sample something the annotator is meant to leave alone, and it is why the committed
 #: annotation has three spheres rather than four.
-BLOBS = ((1.5, (-20.0, -9.0, -6.0)),)
+DECOYS = ((1.5, (-20.0, -9.0, -6.0)),)
 
 
 def _midpoint(a, b):
@@ -158,15 +159,15 @@ def _fill_capsule(fill, grid, a, b, radius):
     np.maximum(fill, np.clip((radius + EDGE / 2 - distance) / EDGE, 0.0, 1.0), out=fill)
 
 
-def sphere_of(sac):
-    """Return the ``(centre, radius)`` the module derives from a sac's two points.
+def sphere_of(target):
+    """Return the ``(centre, radius)`` the module derives from a target's two points.
 
-    The single definition of the pairing, used both to rasterise the sac and to check the
+    The single definition of the pairing, used both to rasterise the target and to check the
     committed annotation against it.
     """
-    ostium = np.asarray(sac["ostium"], dtype=float)
-    dome = np.asarray(sac["dome"], dtype=float)
-    return _midpoint(ostium, dome), float(np.linalg.norm(dome - ostium) / 2)
+    base = np.asarray(target["base"], dtype=float)
+    tip = np.asarray(target["tip"], dtype=float)
+    return _midpoint(base, tip), float(np.linalg.norm(tip - base) / 2)
 
 
 def _build_volume(grid, shape):
@@ -177,17 +178,17 @@ def _build_volume(grid, shape):
         for a, b in itertools.pairwise(centreline):
             _fill_capsule(fill, grid, a, b, radius)
 
-    for sac in SACS:
-        # The sac as a sphere on the ostium-to-dome axis, plus a short neck of the same radius,
+    for target in TARGETS:
+        # The target as a sphere on the base-to-tip axis, plus a short neck of the same radius,
         # which is what stops it reading as a ball floating beside the vessel.
-        centre, radius = sphere_of(sac)
+        centre, radius = sphere_of(target)
         _fill_capsule(fill, grid, centre, centre, radius)
-        _fill_capsule(fill, grid, sac["ostium"], centre, radius * 0.55)
+        _fill_capsule(fill, grid, target["base"], centre, radius * 0.55)
 
-    for radius, centre in BLOBS:
+    for radius, centre in DECOYS:
         _fill_capsule(fill, grid, centre, centre, radius)
 
-    volume = BACKGROUND + (VESSEL - BACKGROUND) * fill
+    volume = BACKGROUND + (FOREGROUND - BACKGROUND) * fill
     volume += _texture(shape)
     return np.rint(volume).astype(np.int16)
 
@@ -256,7 +257,7 @@ def write_volume(path, volume, origin):
 def annotation_file():
     """Return the annotation as the structure Slicer's ``.mrk.json`` holds.
 
-    Ostium then dome, one sac after another, because sphere *n* is control points *2n* and
+    Base then tip, one target after another, because sphere *n* is control points *2n* and
     *2n+1*. Written in RAS: the file records which convention it uses and the module works in
     RAS, so saying so here avoids a silent flip of every coordinate's sign. Slicer's own Save
     writes LPS by default — see docs/annotation-format.md.
@@ -264,7 +265,7 @@ def annotation_file():
     Only the fields a reader needs are emitted. Slicer fills in the rest on load, and a
     hand-listed copy of its defaults would be one more thing to keep current with Slicer.
     """
-    positions = [point for sac in SACS for point in (sac["ostium"], sac["dome"])]
+    positions = [point for target in TARGETS for point in (target["base"], target["tip"])]
     return {
         "@schema": "https://raw.githubusercontent.com/slicer/slicer/master/Modules/Loadable/"
                    "Markups/Resources/Schema/markups-schema-v1.0.3.json#",
@@ -294,7 +295,7 @@ def main():
 
     print(f"{volume_path}: {shape[0]}x{shape[1]}x{shape[2]} at {SPACING} mm, "
           f"{volume_path.stat().st_size / 1024:.0f} KiB")
-    print(f"{annotation_path}: {len(SACS)} spheres from {2 * len(SACS)} control points")
+    print(f"{annotation_path}: {len(TARGETS)} spheres from {2 * len(TARGETS)} control points")
 
 
 if __name__ == "__main__":

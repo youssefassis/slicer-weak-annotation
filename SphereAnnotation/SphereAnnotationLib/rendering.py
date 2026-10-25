@@ -10,7 +10,7 @@ SCALAR_OPACITY_POINT_COUNT = 2
 
 #: The ramp rises over this fraction of the volume's scalar range. A tenth of the range is
 #: what the module has always used; it is proportional rather than absolute because the
-#: scalar range of an angiogram depends on how it was acquired and reconstructed.
+#: scalar range of a volume depends on how it was acquired and reconstructed.
 OPACITY_RAMP_FRACTION = 0.1
 
 # vtkPiecewiseFunction node values are (x, y, midpoint, sharpness).
@@ -37,8 +37,8 @@ def scalar_opacity_points(min_value, max_value, threshold, opacity, fraction=OPA
     """Return the opacity ramp control points for the volume rendering.
 
     Everything below ``threshold - margin`` is transparent and everything at or above
-    ``threshold`` is drawn at ``opacity``, which is what turns a windowed angiogram into a
-    vessel tree the annotator can place points on.
+    ``threshold`` is drawn at ``opacity``, which is what hides the background so the
+    annotator can see the structures they place points on.
 
     ``threshold`` is clamped into ``[min_value, max_value]`` because the slider reaches both
     ends of the range, and a volume swapped underneath it can leave the value outside for as
@@ -70,7 +70,7 @@ def scalar_opacity_points(min_value, max_value, threshold, opacity, fraction=OPA
 def default_threshold(min_value, max_value):
     """The threshold a freshly loaded volume starts at.
 
-    A third of the way up the range is low enough that the vessels are visible without any
+    A third of the way up the range is low enough that bright structures are visible without any
     fiddling, which is what the annotator needs before they can place a single point.
 
     A third of the way up *the volume's own range*, which ``(min + max) / 3`` only is for a

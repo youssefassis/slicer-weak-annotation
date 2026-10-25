@@ -4,7 +4,7 @@
 The case in ``data/sample_case/`` is what a new user opens first, so it failing to load is a
 bad first impression of the module. These tests guard the two ways that happens: the annotation
 drifting from ``tools/make_sample_data.py`` (edited by hand, or the tool changed without
-regenerating), and a sphere ceasing to sit on the sac drawn for it.
+regenerating), and a sphere ceasing to sit on the target drawn for it.
 
 The volume's *content* is not re-rasterised here — that takes seconds, and the geometry it is
 drawn from is the same constants this file checks the annotation against.
@@ -61,7 +61,7 @@ def header():
 def positions():
     """The annotation's control points, read the way a consumer outside Slicer would."""
     markup = json.loads(ANNOTATION.read_text())["markups"][0]
-    assert markup["coordinateSystem"] == "RAS", "the sacs are authored in RAS"
+    assert markup["coordinateSystem"] == "RAS", "the targets are authored in RAS"
     return [point["position"] for point in markup["controlPoints"]]
 
 
@@ -104,20 +104,20 @@ class TestTheAnnotation:
         # shows up here rather than in Slicer.
         assert ANNOTATION.read_text() == json.dumps(gen.annotation_file(), indent=2) + "\n"
 
-    def test_holds_two_control_points_per_sac(self, positions):
-        assert len(positions) == 2 * len(gen.SACS)
-        assert spheres.sphere_count(len(positions)) == len(gen.SACS)
+    def test_holds_two_control_points_per_target(self, positions):
+        assert len(positions) == 2 * len(gen.TARGETS)
+        assert spheres.sphere_count(len(positions)) == len(gen.TARGETS)
 
     def test_has_no_half_placed_pair(self, positions):
         # An odd count draws the last sphere as nothing, which in a shipped sample would look
-        # like the module losing an aneurysm.
+        # like the module losing a sphere.
         assert len(positions) % 2 == 0
 
-    def test_every_sphere_lands_on_the_sac_that_was_drawn_for_it(self, positions):
+    def test_every_sphere_lands_on_the_target_that_was_drawn_for_it(self, positions):
         # The join that makes the sample worth shipping: the sphere the module derives from a
-        # pair is the sphere the generator rasterised, so the overlay sits on the sac.
-        for sac, (a, b) in zip(gen.SACS, zip(positions[::2], positions[1::2], strict=True), strict=True):
-            drawn_centre, drawn_radius = gen.sphere_of(sac)
+        # pair is the sphere the generator rasterised, so the overlay sits on the target.
+        for target, (a, b) in zip(gen.TARGETS, zip(positions[::2], positions[1::2], strict=True), strict=True):
+            drawn_centre, drawn_radius = gen.sphere_of(target)
             centre, radius = spheres.center_and_radius(a, b)
             assert centre == pytest.approx(drawn_centre)
             assert radius == pytest.approx(drawn_radius)
@@ -130,10 +130,10 @@ class TestTheAnnotation:
             assert np.all(np.array(centre) - radius >= low)
             assert np.all(np.array(centre) + radius <= high)
 
-    def test_the_decoy_blob_is_not_annotated(self, positions):
-        # The blob is drawn so the sample has something the annotator is meant to leave alone.
+    def test_the_decoy_is_not_annotated(self, positions):
+        # The decoy is drawn so the sample has something the annotator is meant to leave alone.
         # If a sphere ever lands on it, the sample is teaching the opposite of what it means to.
-        for _, blob_centre in gen.BLOBS:
+        for _, decoy_centre in gen.DECOYS:
             for a, b in zip(positions[::2], positions[1::2], strict=True):
                 centre, _ = spheres.center_and_radius(a, b)
-                assert np.linalg.norm(np.array(centre) - blob_centre) > 5.0
+                assert np.linalg.norm(np.array(centre) - decoy_centre) > 5.0
