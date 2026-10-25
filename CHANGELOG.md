@@ -16,6 +16,9 @@ made. See `docs/annotation-format.md`.
   one loaded through Slicer's DICOM module, for instance. A picked volume is borrowed: Clean
   and replacing it leave it in the scene, and its rendering nodes are only removed if the
   module created them.
+- **Export CSV** writes one row per sphere — label, number, centre (RAS mm) and radius — for
+  pipelines that do not read Slicer markups. The label is the points node's name. A trailing
+  unpaired point is left out, with a warning naming the annotation.
 
 ### Changed
 

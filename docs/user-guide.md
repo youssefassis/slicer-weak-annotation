@@ -84,6 +84,7 @@ that form a pair** is safe.
 | button | what it does |
 | --- | --- |
 | **Save** | Opens Slicer's Save Data dialog. Your annotation is the markups node — save that. Slicer 5 writes `.mrk.json` by default; `.fcsv` is offered for the legacy format. |
+| **Export CSV** | Writes one row per sphere — `label` (the points node's name), `sphere` (its number within that node, from 0), `center_r`, `center_a`, `center_s`, `radius` — in RAS millimetres, world coordinates, so exactly where the sphere is drawn. For pipelines that do not read Slicer markups. A derived copy: the module does not read it back, so **Save** the markups too. A last point with no partner is left out, and the module says so. |
 | **Clean** | Removes the volume, the points and the spheres **this module** put in the scene. Anything else stays — including a volume you picked in the selector. |
 
 **Clean discards unsaved points without asking.** Save first.

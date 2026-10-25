@@ -45,6 +45,7 @@ No data to try it on? A synthetic sample case ships in [`data/`](data/README.md)
 - Any number of spheres per volume, adjusted by dragging in 3D or on the slices.
 - Colour, opacity and visibility of the spheres.
 - Load two annotations of the same volume to compare them side by side.
+- Export the spheres as a CSV table (label, centre, radius) for training pipelines.
 - Saved as standard Slicer markups (`.mrk.json` or `.fcsv`), readable by
   [any script](docs/annotation-format.md#reading-an-annotation-elsewhere).
 - Leaves the rest of your scene alone, on opening and on **Clean**.

@@ -8,6 +8,7 @@ be named after the class it defines.
 SphereAnnotation/
 ├── SphereAnnotation.py         Slicer + Qt glue: widget, MRML nodes, signal wiring
 ├── SphereAnnotationLib/        the Slicer-free core
+│   ├── export.py               the spheres as a CSV table
 │   ├── rendering.py            colour conversion and the volume opacity ramp
 │   └── spheres.py              point pairs read as spheres
 ├── Resources/UI/               the Qt Designer layout

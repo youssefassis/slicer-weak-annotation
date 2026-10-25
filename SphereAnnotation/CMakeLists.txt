@@ -10,6 +10,7 @@ set(MODULE_NAME SphereAnnotation)
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   SphereAnnotationLib/__init__.py
+  SphereAnnotationLib/export.py
   SphereAnnotationLib/rendering.py
   SphereAnnotationLib/spheres.py
   )

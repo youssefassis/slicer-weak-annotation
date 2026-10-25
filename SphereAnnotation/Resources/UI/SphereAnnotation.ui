@@ -415,6 +415,16 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="exportButton">
+       <property name="toolTip">
+        <string>Write one row per sphere (label, centre, radius in RAS millimetres) to a CSV file.</string>
+       </property>
+       <property name="text">
+        <string>Export CSV</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="cleanButton">
        <property name="text">
         <string>Clean</string>
