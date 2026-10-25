@@ -184,8 +184,8 @@ was an open question long enough to be worth closing explicitly.
 
 - **The name is `SphereAnnotation`**, at both levels: the extension and its one module share
   it, so the Extensions Manager, Slicer's module list and this tree all say the same word.
-  The aneurysm framing lives in `EXTENSION_CATEGORY`, not in the name — the module measures
-  any ball-shaped object. Renaming the module would have meant renaming its file, its class,
+  Neither the name nor the category (*Annotation*) names a subject — the module measures any
+  ball-shaped object, and aneurysms are only the bundled sample case. Renaming the module would have meant renaming its file, its class,
   its directory and its `.ui` file together, since Slicer requires those to match; renaming
   the CMake project meant one line.
 - **Supported Slicer is 5.12 or later**, the tested floor rather than a promise about the
