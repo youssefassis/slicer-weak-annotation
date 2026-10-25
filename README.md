@@ -4,120 +4,55 @@
 > [gitlab.inria.fr/yassis/slicer-sphere-annotation](https://gitlab.inria.fr/yassis/slicer-sphere-annotation),
 > developed at the [Loria](https://www.loria.fr/) lab.
 
-A [3D Slicer](https://www.slicer.org/) extension for annotating any ball-shaped object in a 3D
-volume with spheres — aneurysms, nodules, lesions, cells, or whatever your labelling project
-is about. Nothing in it is specific to one anatomy or one kind of image.
+A [3D Slicer](https://www.slicer.org/) extension for labelling any ball-shaped object in a 3D
+volume — aneurysms, nodules, lesions, cells — with spheres.
 
-**You place two points; you get a sphere.** The two points sit at opposite ends of a
-diameter, so the sphere appears between them and follows either one as you drag it. That is
-the whole interaction, and the whole file format. It gives you a weak label — a location and
-a size — in a couple of clicks, without segmenting anything.
+**Place two points; get a sphere.** The points sit at opposite ends of a diameter, and the
+sphere follows either one as you drag it. A location and a size in two clicks, without
+segmenting anything.
 
 <img width=100% src="docs/sample.gif" alt="Placing and adjusting a sphere in the 3D view">
 
-## Requirements
-
-**3D Slicer 5.12 or later.** Developed and tested against
-[5.12.3](https://download.slicer.org/). Earlier 5.x releases are untested and may work;
-Slicer 4 will not — the module uses Slicer 5's markups API.
-
-Nothing else to install: Slicer supplies numpy, VTK and Qt, and the module drives only
-modules that ship with Slicer.
-
 ## Install
+
+Requires **3D Slicer 5.12 or later**. Nothing else: Slicer supplies everything the module uses.
 
 ```bash
 git clone https://github.com/youssefassis/slicer-weak-annotation.git
 ```
 
-Then either point Slicer at it for one session:
+In Slicer, open *Edit → Application Settings → Modules*, add the inner `SphereAnnotation/`
+directory (the one containing `SphereAnnotation.py`) to **Additional module paths**, and
+restart. The module appears as **Sphere Annotation**, under *Annotation*.
 
-```bash
-# macOS; adjust for your install
-/Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths slicer-weak-annotation/SphereAnnotation
-```
+## Quick start
 
-…or add it permanently: *Edit → Application Settings → Modules*, drag the inner
-`SphereAnnotation/` directory (the one containing `SphereAnnotation.py`) into **Additional
-module paths**, and restart Slicer.
+1. **Volume → Load** a volume, then drag **Threshold** until what you are labelling stands out.
+2. **Annotations → Create**, and click one edge of the object. Nothing is drawn yet — one
+   point is half a sphere.
+3. **Create** again, and click the opposite edge. The sphere appears.
+4. Drag either point, in the 3D view or any slice view, until the sphere fits.
+5. Repeat for each object, then **Save**. Your annotation is the markups node.
 
-Either way the module then appears in the module list as **Sphere Annotation**, under
-*Annotation*.
+<img width=70% src="docs/images/step-4-all-spheres.png" alt="Three objects annotated with three spheres in one volume">
 
-## Your first annotation
+No data to try it on? A synthetic sample case ships in [`data/`](data/README.md).
 
-**No volume to hand?** A synthetic angiogram with three aneurysms ships with the module — see
-[`data/`](data/README.md). Everything below is shown on it; on your own data, read
-"aneurysm" as whatever you are labelling.
+## Features
 
-1. **Volume → Load.** Pick a `.nii` or `.nii.gz` angiogram. It appears in the 3D view.
-2. Drag **Threshold** until the vessels stand out. This is the one control worth playing
-   with — it is what hides the background so you can see what you are aiming at.
-
-   <img width=70% src="docs/images/step-1-volume.png" alt="A vessel tree in the 3D view after loading a volume and setting the threshold">
-
-3. **Annotations → Create**, then click one edge of the aneurysm. *Nothing is drawn yet.*
-
-   <img width=70% src="docs/images/step-2-one-point.png" alt="A single control point placed on the edge of an aneurysm, with no sphere drawn">
-
-4. **Create** again, then click the opposite edge. *The sphere appears.*
-
-   <img width=70% src="docs/images/step-3-sphere.png" alt="The sphere appearing between the two control points, covering the aneurysm">
-
-5. Nudge either point — in the 3D view or in any 2D slice view — until the sphere covers the
-   aneurysm. It resizes as you drag.
-6. **Save** when you are done, and pick a location. Your annotation is the markups node.
-
-Repeat steps 3–5 for each aneurysm. Every pair of points is a new sphere:
-
-<img width=70% src="docs/images/step-4-all-spheres.png" alt="Three aneurysms annotated with three spheres in one volume">
-
-> Nothing is drawn after step 3, and that is correct: one point does not define a sphere. If a
-> sphere you expected is missing, an odd number of points is the first thing to check.
-
-> The volume above is deliberately half-transparent. Each sphere is exactly the size of the
-> sac it covers, so at full opacity the sac hides it — turn **Volume → Opacity** down to see
-> one against the other.
-
-The [user guide](docs/user-guide.md) covers every control, and the parts that surprise people.
-
-## What you can do with it
-
-- Annotate any number of objects in one volume, each with two clicks.
-- Adjust position and size by dragging points in the 3D view or on the 2D slices.
-- Set the colour and opacity of the spheres, and hide them without deleting them.
-- **Load two annotations at once** and compare them side by side — a second **Load** adds to
-  the scene rather than replacing what is there.
-- Save to Slicer's standard markups formats (`.mrk.json`, or legacy `.fcsv`), which any
-  Slicer install and [any script](docs/annotation-format.md#reading-an-annotation-elsewhere)
-  can read back.
-
-Opening this module leaves whatever you already had loaded alone, and so does **Clean**.
+- Any number of spheres per volume, adjusted by dragging in 3D or on the slices.
+- Colour, opacity and visibility of the spheres.
+- Load two annotations of the same volume to compare them side by side.
+- Saved as standard Slicer markups (`.mrk.json` or `.fcsv`), readable by
+  [any script](docs/annotation-format.md#reading-an-annotation-elsewhere).
+- Leaves the rest of your scene alone, on opening and on **Clean**.
 
 ## Documentation
 
-Everything lives in [`docs/`](docs/README.md). Start there, or jump straight to:
-
-| | |
-| --- | --- |
-| [user guide](docs/user-guide.md) | every control, in the annotator's terms |
-| [annotation format](docs/annotation-format.md) | the point-pairing contract — read this if you consume the files |
-| [architecture](docs/architecture.md) | how the code is split, node ownership, the sphere maths |
-| [development](docs/development.md) | the two Python environments, the test loop, open decisions |
-
-## Develop
-
-The sphere maths and the display maths live in `SphereAnnotation/SphereAnnotationLib/`, which
-is kept free of `slicer`/`vtk`/`qt`/`ctk` so it can be tested without launching Slicer:
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest     # 58 tests, well under a second
-ruff check .         # lint, and the import boundary above
-```
-
-Both checks run on every push, on GitHub and GitLab alike. Anything touching widgets or MRML
-nodes needs Slicer — see [development](docs/development.md).
+- [User guide](docs/user-guide.md) — every control, and troubleshooting.
+- [Annotation format](docs/annotation-format.md) — how points become spheres, for reading
+  the files elsewhere.
+- [Development](docs/development.md) — running the tests and contributing.
 
 ## Citation
 
