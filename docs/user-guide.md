@@ -1,13 +1,13 @@
 # User guide
 
 The module appears in Slicer as **Sphere Annotation**, under the *Annotation* category. It works on
-any ball-shaped object; the examples below use the aneurysms of the bundled sample case.
+any ball-shaped object; the figures below use the bundled synthetic sample case.
 
 You place **two points per sphere**, at opposite ends of a diameter. The sphere appears
 between them and follows either point as you drag it. That is the whole interaction, and the
 whole [file format](annotation-format.md).
 
-<img width=100% src="module-panel.jpg" alt="The module panel beside a sphere placed on an aneurysm in the 3D view">
+<img width=100% src="module-panel.jpg" alt="The module panel beside a sphere placed in the 3D view">
 
 ## Your first sphere
 
@@ -26,7 +26,7 @@ the module will not guess the second.
 
 <img width=48% src="images/step-2-one-point.png" alt="One point placed: no sphere"> <img width=48% src="images/step-3-sphere.png" alt="The second point placed: the sphere appears">
 
-*One point, then two.* No volume to hand? A synthetic angiogram ships with the module — see
+*One point, then two.* No volume to hand? A synthetic sample case ships with the module — see
 [`data/`](../data/README.md), which is what these figures use.
 
 Getting a sphere right usually means nudging both points across two or three slice views. That

@@ -12,6 +12,9 @@ made. See `docs/annotation-format.md`.
 
 ### Changed
 
+- **The sample case files are now `volume.nii.gz` and `annotation.mrk.json`** (were
+  `angio.nii.gz` and `aneurysms.mrk.json`). The voxels and points are unchanged.
+
 - **The module is now listed under *Annotation* instead of *Aneurysms*,** and its description
   and documentation present it as a tool for any ball-shaped object. The behaviour is
   unchanged; aneurysms remain the bundled sample case.

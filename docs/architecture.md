@@ -57,8 +57,8 @@ straight:
 
 `rendering.scalar_opacity_points` builds a fixed 2-point opacity ramp: transparent below
 `threshold - margin`, rising to the chosen opacity at `threshold`. The margin is a tenth of
-the volume's scalar *span*, proportional rather than absolute because the scalar range of an
-angiogram depends on how it was acquired.
+the volume's scalar *span*, proportional rather than absolute because the scalar range of a
+volume depends on how it was acquired.
 
 **The two node scalars must be strictly ascending**, and that is the invariant the whole
 function exists to hold. `vtkPiecewiseFunction.AddPoint` *replaces* a node at an x it already

@@ -10,7 +10,7 @@ sphere follows either point as you drag it.
 | if you want to… | read |
 | --- | --- |
 | annotate a volume | [user-guide.md](user-guide.md) |
-| try the module without an angiogram of your own | [../data/README.md](../data/README.md) |
+| try the module without a volume of your own | [../data/README.md](../data/README.md) |
 | read or generate annotation files | [annotation-format.md](annotation-format.md) |
 | change the code | [architecture.md](architecture.md), then the rest of this page |
 | set up a dev environment, run the tests | [development.md](development.md) |
