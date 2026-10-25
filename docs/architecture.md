@@ -88,7 +88,7 @@ Three references are what make that possible:
 
 | | |
 | --- | --- |
-| `self.volNode` | whatever `slicer.util.loadVolume` returned |
+| `self.volNode` | whatever `slicer.util.loadVolume` returned, or the volume picked in the selector |
 | `self.pointsNodes` | the markups nodes this module created or loaded, in order |
 | `self.modelNode` | the model node it draws the spheres into |
 
@@ -97,6 +97,12 @@ All three used to be searches — `getNodesByClass("vtkMRMLScalarVolumeNode")[0]
 widget's `__init__` called `slicer.mrmlScene.Clear(0)`, so **opening the module destroyed
 everything already in the scene**, and what survived was then taken over. `load_volume` also
 removed every `vtkMRMLMarkupsROINode` it found, which belonged to whatever else was open.
+
+The volume selector is the one place a node comes from the scene rather than from the
+module, and it is the annotator's choice, not a search. Such a volume is **borrowed**:
+`self.ownsVolume` is false, so `releaseVolumeNode()` — on Clean, or when another volume
+replaces it — leaves it in the scene. `self.ownsRenderingNodes` does the same for its volume
+rendering nodes: removed only if the module created them, otherwise just hidden.
 
 Keep it that way: a `getNodesByClass` in this file is a bug waiting for someone who had their
 own volume loaded. `test_opening_the_module_leaves_the_rest_of_the_scene_alone` is the guard.
@@ -173,7 +179,7 @@ Three paths, with different obligations:
 
 | | |
 | --- | --- |
-| `reset()` (the **Clean** button) | forgets the volume, points and model this module owns, then removes them |
+| `reset()` (the **Clean** button) | releases the volume (removing it only if owned), then forgets the points and model and removes them |
 | `onSceneEndClose` | the nodes are already gone; only `releasePointsNodes()` + `forgetSceneState()` |
 | `cleanup()` (reload / Slicer exit) | observers first, then the **model node only** |
 

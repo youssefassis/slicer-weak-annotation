@@ -27,7 +27,8 @@ restart. The module appears as **Sphere Annotation**, under *Annotation*.
 
 ## Quick start
 
-1. **Volume → Load** a volume, then drag **Threshold** until what you are labelling stands out.
+1. **Volume → Load** a volume file, or pick one already open (a DICOM series, say) in the
+   selector beside it. Then drag **Threshold** until what you are labelling stands out.
 2. **Annotations → Create**, and click one edge of the object. Nothing is drawn yet — one
    point is half a sphere.
 3. **Create** again, and click the opposite edge. The sphere appears.
@@ -40,6 +41,7 @@ No data to try it on? A synthetic sample case ships in [`data/`](data/README.md)
 
 ## Features
 
+- Any volume Slicer opens — NRRD, NIfTI, MetaImage, DICOM via Slicer's DICOM module.
 - Any number of spheres per volume, adjusted by dragging in 3D or on the slices.
 - Colour, opacity and visibility of the spheres.
 - Load two annotations of the same volume to compare them side by side.

@@ -10,14 +10,22 @@ made. See `docs/annotation-format.md`.
 
 ## [Unreleased]
 
+### Added
+
+- **A volume selector beside Volume → Load** picks a volume that is already in the scene —
+  one loaded through Slicer's DICOM module, for instance. A picked volume is borrowed: Clean
+  and replacing it leave it in the scene, and its rendering nodes are only removed if the
+  module created them.
+
 ### Changed
 
+- **Volume → Load accepts every common single-file format Slicer reads** — NRRD, NIfTI,
+  MetaImage, Analyze, TIFF — plus *All files* for anything else, instead of NIfTI only.
 - **The sample case files are now `volume.nii.gz` and `annotation.mrk.json`** (were
   `angio.nii.gz` and `aneurysms.mrk.json`). The voxels and points are unchanged.
-
 - **The module is now listed under *Annotation* instead of *Aneurysms*,** and its description
   and documentation present it as a tool for any ball-shaped object. The behaviour is
-  unchanged; aneurysms remain the bundled sample case.
+  unchanged.
 
 ## [0.1.0] - 2026-09-20
 

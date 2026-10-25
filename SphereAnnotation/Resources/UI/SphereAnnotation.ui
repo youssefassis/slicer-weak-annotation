@@ -167,11 +167,51 @@
               </widget>
              </item>
              <item row="0" column="1">
-              <widget class="QPushButton" name="load_volume_button">
-               <property name="text">
-                <string>Load</string>
-               </property>
-              </widget>
+              <layout class="QHBoxLayout" name="volumeSelectorLayout">
+               <item>
+                <widget class="qMRMLNodeComboBox" name="volumeSelector">
+                 <property name="toolTip">
+                  <string>A volume already in the scene — for example one loaded through the DICOM module.</string>
+                 </property>
+                 <property name="nodeTypes">
+                  <stringlist>
+                   <string>vtkMRMLScalarVolumeNode</string>
+                  </stringlist>
+                 </property>
+                 <property name="showChildNodeTypes">
+                  <bool>false</bool>
+                 </property>
+                 <property name="noneEnabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="noneDisplay">
+                  <string>Select a volume</string>
+                 </property>
+                 <property name="addEnabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="removeEnabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="editEnabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="renameEnabled">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="load_volume_button">
+                 <property name="toolTip">
+                  <string>Load a volume from a file (NRRD, NIfTI, MetaImage, Analyze, TIFF…).</string>
+                 </property>
+                 <property name="text">
+                  <string>Load</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
             </layout>
            </item>
@@ -420,6 +460,11 @@
    <class>ctkSliderWidget</class>
    <extends>QWidget</extends>
    <header>ctkSliderWidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLNodeComboBox</class>
+   <extends>QWidget</extends>
+   <header>qMRMLNodeComboBox.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLSliderWidget</class>
