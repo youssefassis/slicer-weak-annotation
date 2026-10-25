@@ -98,6 +98,10 @@ For anything touching widgets, MRML nodes or the views:
 /Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths SphereAnnotation
 ```
 
+On Apple silicon, Slicer 5.12 is an Intel build and fails with "bad CPU type" until Rosetta 2
+is installed (`softwareupdate --install-rosetta --agree-to-license`). The arm64 builds on
+download.slicer.org are previews of the next release, not the supported version.
+
 Then iterate without restarting: open the module, use the **Reload** button in *Developer
 Tools*, or `Ctrl+R` / `Cmd+R`. Reloading destroys the widget, so `cleanup()` removes the
 spheres model this module put in the scene. **The points stay** — they are your annotation —

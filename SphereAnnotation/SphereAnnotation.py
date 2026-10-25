@@ -137,6 +137,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
         # And a single node deleted from the Data module has to stop being drawn.
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeRemovedEvent, self.onNodeRemoved)
+        # And the volume on show has to be let go of *before* it goes — see the handler.
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.NodeAboutToBeRemovedEvent, self.onNodeAboutToBeRemoved)
 
     ############################################ Node ownership ############################################
 
@@ -253,7 +255,6 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Remove what this module put in the scene, and nothing else."""
         self.releasePointsNodes()
         self.releaseVolumeNode()
-        self.ui.volumeSelector.setCurrentNode(None)
         nodes = [self.currentModelNode(), *self.currentPointsNodes()]
         # Forget first, then remove. Removing a node fires NodeRemovedEvent, and the handler
         # for it redraws when one of the points nodes has gone — which, halfway through this
@@ -268,6 +269,21 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """The scene was closed from the File menu: the nodes are already gone."""
         self.releasePointsNodes()
         self.forgetSceneState()
+
+    @vtk.calldata_type(vtk.VTK_OBJECT)
+    def onNodeAboutToBeRemoved(self, caller, event, node):
+        """The volume on show is being deleted elsewhere — from the Data module, say.
+
+        Let go of it now, while the selector still holds it. Left until afterwards, the
+        selector reacts to the removal by moving on to a neighbouring volume, which the module
+        would then adopt although nobody picked it. This event reaches observers before the
+        selector moves; measured in Slicer 5.12.4.
+        """
+        if node is None or node is not self.volNode or slicer.mrmlScene.IsBatchProcessing():
+            return
+        # It is going whoever owned it; only the rendering nodes are left to deal with.
+        self.ownsVolume = False
+        self.releaseVolumeNode()
 
     def onNodeRemoved(self, caller=None, event=None):
         """A node left the scene. If it was one of ours, stop drawing its spheres.
@@ -514,10 +530,15 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onVolumeSelected(self, volNode):
         """The annotator picked a volume that is already in the scene, or none."""
-        if volNode is self.currentVolumeNode():
+        shown = self.currentVolumeNode()
+        if volNode is shown:
             return
         if volNode is None:
             self.releaseVolumeNode()
+            return
+        if volNode.GetImageData() is None:
+            slicer.util.errorDisplay(f"{volNode.GetName()} has no image data to show.", windowTitle="Sphere Annotation")
+            self.setSelectedVolume(shown)
             return
         self.adoptVolumeNode(volNode, owned=False)
         slicer.util.setSliceViewerLayers(background=volNode)
@@ -543,7 +564,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not displayNode:
             displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(volNode)
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
-        self.ui.volumeSelector.setCurrentNode(volNode)
+        self.setSelectedVolume(volNode)
 
         min_value, max_value = volNode.GetImageData().GetScalarRange()
         # Widen, then narrow. Assigning one end past the other drags that other end along and
@@ -574,25 +595,44 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def releaseVolumeNode(self):
         """Stop showing the current volume, removing only what this module put in the scene.
 
-        Forgets first, then removes, for the same reason :meth:`reset` does: removing a node
-        reaches the selector, which reports the change back here.
+        Forgets first, then removes with the selector silenced — see the comment below.
         """
         volNode = self.currentVolumeNode()
-        if volNode is None:
-            return
         ownsVolume, ownsRenderingNodes = self.ownsVolume, self.ownsRenderingNodes
         self.volNode = None
         self.ownsVolume = False
         self.ownsRenderingNodes = False
+        if volNode is None:
+            return
 
-        if ownsRenderingNodes:
-            self.removeVolumeRenderingNodes(volNode)
-        else:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode)
-            if displayNode is not None:
-                displayNode.SetVisibility(False)
-        if ownsVolume:
-            slicer.mrmlScene.RemoveNode(volNode)
+        # Silenced while removing. The selector reports a removal by re-emitting its selection —
+        # or, if the removed node was the selection, by moving on to a neighbouring volume — and
+        # either one arriving here halfway through an adopt re-adopts a volume before this has
+        # finished letting go of the last one. Measured in Slicer 5.12.4.
+        selector = self.ui.volumeSelector
+        wasBlocked = selector.blockSignals(True)
+        try:
+            if selector.currentNode() is volNode:
+                selector.setCurrentNode(None)
+            if ownsRenderingNodes:
+                self.removeVolumeRenderingNodes(volNode)
+            else:
+                displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode)
+                if displayNode is not None:
+                    displayNode.SetVisibility(False)
+            if ownsVolume:
+                slicer.mrmlScene.RemoveNode(volNode)
+        finally:
+            selector.blockSignals(wasBlocked)
+
+    def setSelectedVolume(self, volNode):
+        """Show ``volNode`` in the selector without it reporting the change back here."""
+        selector = self.ui.volumeSelector
+        wasBlocked = selector.blockSignals(True)
+        try:
+            selector.setCurrentNode(volNode)
+        finally:
+            selector.blockSignals(wasBlocked)
 
     def removeVolumeRenderingNodes(self, volNode):
         """Remove the rendering nodes that were created for ``volNode``.
@@ -734,6 +774,10 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.test_picking_a_volume_replaces_a_loaded_one()
         self.setUp()
         self.test_exported_rows_match_the_drawn_spheres()
+        self.setUp()
+        self.test_deleting_the_shown_volume_adopts_no_other()
+        self.setUp()
+        self.test_a_volume_without_image_data_is_not_adopted()
 
     def widget(self):
         slicer.util.selectModule("SphereAnnotation")
@@ -983,3 +1027,32 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.assertEqual(
             [rows[0]["center_r"], rows[0]["center_a"], rows[0]["center_s"]], list(widget.spheres[0].GetCenter())
         )
+
+    def test_deleting_the_shown_volume_adopts_no_other(self):
+        """The selector moves to a neighbouring volume on its own; the module must not follow."""
+        self.delayDisplay("Deleting the shown volume adopts no other")
+        widget = self.widget()
+
+        shown = self.syntheticVolume("Shown")
+        widget.adoptVolumeNode(shown, owned=True)
+        displayNode = widget.volumeRenderingDisplayNode()
+        bystander = self.syntheticVolume("Bystander")
+
+        slicer.mrmlScene.RemoveNode(shown)
+
+        self.assertIsNone(widget.currentVolumeNode())
+        self.assertIsNone(widget.ui.volumeSelector.currentNode())
+        self.assertIsNone(slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(bystander))
+        # And the rendering nodes made for the deleted volume went with it.
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(displayNode))
+
+    def test_a_volume_without_image_data_is_not_adopted(self):
+        """A volume node with nothing in it yet cannot be rendered, and used to raise."""
+        self.delayDisplay("A volume without image data is not adopted")
+        widget = self.widget()
+
+        empty = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "Empty")
+        widget.ui.volumeSelector.setCurrentNode(empty)
+
+        self.assertIsNone(widget.currentVolumeNode())
+        self.assertIsNone(widget.ui.volumeSelector.currentNode())
