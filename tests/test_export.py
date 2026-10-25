@@ -11,20 +11,24 @@ class TestSphereRows:
     def test_a_pair_is_one_row(self):
         rows = export.sphere_rows([("aneurysm", [(0, 0, 0), (10, 0, 0)])])
 
-        assert rows == [{
-            "label": "aneurysm",
-            "sphere": 0,
-            "center_r": 5.0,
-            "center_a": 0.0,
-            "center_s": 0.0,
-            "radius": 5.0,
-        }]
+        assert rows == [
+            {
+                "label": "aneurysm",
+                "sphere": 0,
+                "center_r": 5.0,
+                "center_a": 0.0,
+                "center_s": 0.0,
+                "radius": 5.0,
+            }
+        ]
 
     def test_spheres_are_numbered_within_each_annotation(self):
-        rows = export.sphere_rows([
-            ("a", [(0, 0, 0), (2, 0, 0), (10, 0, 0), (14, 0, 0)]),
-            ("b", [(0, 0, 0), (0, 6, 0)]),
-        ])
+        rows = export.sphere_rows(
+            [
+                ("a", [(0, 0, 0), (2, 0, 0), (10, 0, 0), (14, 0, 0)]),
+                ("b", [(0, 0, 0), (0, 6, 0)]),
+            ]
+        )
 
         assert [(row["label"], row["sphere"]) for row in rows] == [("a", 0), ("a", 1), ("b", 0)]
         assert [row["radius"] for row in rows] == [1.0, 2.0, 3.0]
