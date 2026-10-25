@@ -41,8 +41,13 @@ SLICE_INTERSECTION_THICKNESS = 3
 #: only ``*.Fcsv``, which matches neither on a case-sensitive filesystem.
 MARKUPS_FILE_FILTER = "Markups (*.mrk.json *.fcsv)"
 
-#: Slicer's file filter for the volumes this module loads.
-VOLUME_FILE_FILTER = "NIfTI (*.nii.gz *.nii)"
+#: Slicer's file filter for the volumes this module loads: the single-file formats Slicer's
+#: volume reader handles. DICOM is not here on purpose — a series is loaded through Slicer's
+#: DICOM module and then picked from the volume selector. "All files" is the escape hatch for
+#: anything else ``loadVolume`` can read.
+VOLUME_FILE_FILTER = (
+    "Volumes (*.nrrd *.nhdr *.nii *.nii.gz *.mha *.mhd *.hdr *.img *.tif *.tiff);;All files (*)"
+)
 
 
 class SphereAnnotation(ScriptedLoadableModule):
@@ -66,7 +71,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     **The module owns the nodes it created, and nothing else.** It never empties the scene
     and never looks a node up by class or by name: ``self.volNode`` is what
-    ``slicer.util.loadVolume`` returned, ``self.pointsNodes`` are the markups nodes it created
+    ``slicer.util.loadVolume`` returned or the volume the annotator picked in the selector,
+    ``self.pointsNodes`` are the markups nodes it created
     or loaded, and ``self.modelNode`` is the model it made from them. All three used to be
     ``getNodesByClass``/``GetNodesByName`` searches, and the widget cleared the whole scene on
     open, so opening the module destroyed whatever the annotator already had loaded.
@@ -84,6 +90,11 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # `slicer.mrmlScene.Clear(0)`, so merely opening the module threw away the console
         # history and every node in the scene.
         self.volNode = None
+        # A volume picked in the selector is borrowed, not owned: it was in the scene before
+        # the module saw it, so Clean and a replacement leave it there. The same goes for its
+        # volume rendering nodes when they already existed.
+        self.ownsVolume = False
+        self.ownsRenderingNodes = False
         self.pointsNodes = []
         self.modelNode = None
         self.spheres = []
@@ -100,6 +111,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         uiWidget.setMRMLScene(slicer.mrmlScene)
 
         #### Volume
+        self.ui.volumeSelector.setMRMLScene(slicer.mrmlScene)
+        self.ui.volumeSelector.currentNodeChanged.connect(self.onVolumeSelected)
         self.ui.load_volume_button.connect('clicked(bool)', self.load_volume)
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
         self.ui.volumeOpacity.valueChanged.connect(self.applyOpacityRamp)
@@ -227,6 +240,8 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         which point the nodes are gone and reaching for them is exactly what would go wrong.
         """
         self.volNode = None
+        self.ownsVolume = False
+        self.ownsRenderingNodes = False
         self.pointsNodes = []
         self.modelNode = None
         self.spheres = []
@@ -235,10 +250,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def reset(self):
         """Remove what this module put in the scene, and nothing else."""
         self.releasePointsNodes()
-        volNode = self.currentVolumeNode()
-        if volNode is not None:
-            self.removeVolumeRenderingNodes(volNode)
-        nodes = [self.currentModelNode(), volNode, *self.currentPointsNodes()]
+        self.releaseVolumeNode()
+        self.ui.volumeSelector.setCurrentNode(None)
+        nodes = [self.currentModelNode(), *self.currentPointsNodes()]
         # Forget first, then remove. Removing a node fires NodeRemovedEvent, and the handler
         # for it redraws when one of the points nodes has gone — which, halfway through this
         # loop, would put back the model node the first iteration just removed. With the
@@ -481,6 +495,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if path is None:
             return
 
+        # The selector would otherwise see the new node arrive and report it as picked,
+        # adopting it as borrowed before it can be adopted here as owned.
+        wasBlocked = self.ui.volumeSelector.blockSignals(True)
         try:
             # loadVolume hands the name straight to Qt, which cannot convert a Path.
             volNode = slicer.util.loadVolume(str(path))
@@ -488,27 +505,43 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.exception("Could not load volume from %s", path)
             slicer.util.errorDisplay(f"Could not load the volume.\n\n{path.name}\n\n{error}")
             return
+        else:
+            self.adoptVolumeNode(volNode, owned=True)
+        finally:
+            self.ui.volumeSelector.blockSignals(wasBlocked)
 
-        self.adoptVolumeNode(volNode)
+    def onVolumeSelected(self, volNode):
+        """The annotator picked a volume that is already in the scene, or none."""
+        if volNode is self.currentVolumeNode():
+            return
+        if volNode is None:
+            self.releaseVolumeNode()
+            return
+        self.adoptVolumeNode(volNode, owned=False)
+        slicer.util.setSliceViewerLayers(background=volNode)
 
-    def adoptVolumeNode(self, volNode):
-        """Take ownership of ``volNode``, set up its 3D rendering, and show it.
+    def adoptVolumeNode(self, volNode, owned):
+        """Make ``volNode`` the volume this module shows, set up its 3D rendering, and show it.
 
-        The volume this module loaded previously is removed to make room; anything else in
-        the scene is left alone. The previous version removed *every* scalar volume and every
-        ROI node — including the crop ROI belonging to whatever else the annotator had open.
+        ``owned`` says whether the module brought it into the scene (**Load**) or borrowed it
+        (the selector). Only an owned volume is removed when it is replaced or cleaned; a
+        borrowed one is only hidden. The previous version removed *every* scalar volume and
+        every ROI node — including the crop ROI belonging to whatever else the annotator had
+        open.
         """
-        previous = self.currentVolumeNode()
-        if previous is not None:
-            self.removeVolumeRenderingNodes(previous)
-            slicer.mrmlScene.RemoveNode(previous)
+        if volNode is self.currentVolumeNode():
+            return
+        self.releaseVolumeNode()
         self.volNode = volNode
+        self.ownsVolume = owned
 
         volRenLogic = slicer.modules.volumerendering.logic()
         displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(volNode)
+        self.ownsRenderingNodes = not displayNode
         if not displayNode:
             displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(volNode)
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, volNode)
+        self.ui.volumeSelector.setCurrentNode(volNode)
 
         min_value, max_value = volNode.GetImageData().GetScalarRange()
         # Widen, then narrow. Assigning one end past the other drags that other end along and
@@ -535,6 +568,29 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # checkbox authoritative here costs nothing and means one less thing to re-derive.
         self.applyOpacityRamp()
         self.set_volume_visibility()
+
+    def releaseVolumeNode(self):
+        """Stop showing the current volume, removing only what this module put in the scene.
+
+        Forgets first, then removes, for the same reason :meth:`reset` does: removing a node
+        reaches the selector, which reports the change back here.
+        """
+        volNode = self.currentVolumeNode()
+        if volNode is None:
+            return
+        ownsVolume, ownsRenderingNodes = self.ownsVolume, self.ownsRenderingNodes
+        self.volNode = None
+        self.ownsVolume = False
+        self.ownsRenderingNodes = False
+
+        if ownsRenderingNodes:
+            self.removeVolumeRenderingNodes(volNode)
+        else:
+            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode)
+            if displayNode is not None:
+                displayNode.SetVisibility(False)
+        if ownsVolume:
+            slicer.mrmlScene.RemoveNode(volNode)
 
     def removeVolumeRenderingNodes(self, volNode):
         """Remove the rendering nodes that were created for ``volNode``.
@@ -630,6 +686,10 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.test_a_second_volume_is_shown_like_the_first()
         self.setUp()
         self.test_deleting_a_points_node_stops_drawing_its_spheres()
+        self.setUp()
+        self.test_clean_leaves_a_picked_volume_in_the_scene()
+        self.setUp()
+        self.test_picking_a_volume_replaces_a_loaded_one()
 
     def widget(self):
         slicer.util.selectModule("SphereAnnotation")
@@ -746,7 +806,7 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.placePoints(node, (0, 0, 0), (10, 0, 0))
         widget.draw_spheres()
         model = widget.currentModelNode()
-        widget.adoptVolumeNode(self.syntheticVolume("Ours"))
+        widget.adoptVolumeNode(self.syntheticVolume("Ours"), owned=True)
         displayNode = widget.volumeRenderingDisplayNode()
         propertyNode = displayNode.GetVolumePropertyNode()
 
@@ -806,8 +866,8 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         self.delayDisplay("A second volume is shown like the first")
         widget = self.widget()
 
-        widget.adoptVolumeNode(self.syntheticVolume("First"))
-        widget.adoptVolumeNode(self.syntheticVolume("Second"))
+        widget.adoptVolumeNode(self.syntheticVolume("First"), owned=True)
+        widget.adoptVolumeNode(self.syntheticVolume("Second"), owned=True)
 
         displayNode = widget.volumeRenderingDisplayNode()
         self.assertIsNotNone(displayNode)
@@ -820,3 +880,44 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         scalarOpacity.GetNodeValue(rendering.SCALAR_OPACITY_POINT_COUNT - 1, upper)
         self.assertAlmostEqual(upper[0], widget.ui.volumeThreshold.value)
         self.assertAlmostEqual(upper[1], widget.ui.volumeOpacity.value)
+
+    def test_clean_leaves_a_picked_volume_in_the_scene(self):
+        """A volume picked in the selector was the annotator's before it was the module's."""
+        self.delayDisplay("Clean leaves a picked volume in the scene")
+        widget = self.widget()
+
+        picked = self.syntheticVolume("Picked")
+        widget.ui.volumeSelector.setCurrentNode(picked)
+        self.assertIs(widget.currentVolumeNode(), picked)
+        displayNode = widget.volumeRenderingDisplayNode()
+        self.assertIsNotNone(displayNode)
+
+        widget.clearButton()
+
+        self.assertTrue(slicer.mrmlScene.IsNodePresent(picked))
+        # The rendering nodes did not exist before the module made them, so they go.
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(displayNode))
+        self.assertIsNone(widget.currentVolumeNode())
+        self.assertIsNone(widget.ui.volumeSelector.currentNode())
+
+    def test_picking_a_volume_replaces_a_loaded_one(self):
+        """The module still shows one volume at a time; only the one it loaded is removed."""
+        self.delayDisplay("Picking a volume replaces a loaded one")
+        widget = self.widget()
+
+        loaded = self.syntheticVolume("Loaded")
+        widget.adoptVolumeNode(loaded, owned=True)
+        picked = self.syntheticVolume("Picked")
+        widget.ui.volumeSelector.setCurrentNode(picked)
+
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(loaded))
+        self.assertIs(widget.currentVolumeNode(), picked)
+
+        # Picking a different one hands the first back, minus the rendering nodes made for it.
+        other = self.syntheticVolume("Other")
+        firstDisplayNode = widget.volumeRenderingDisplayNode()
+        widget.ui.volumeSelector.setCurrentNode(other)
+
+        self.assertTrue(slicer.mrmlScene.IsNodePresent(picked))
+        self.assertIs(widget.currentVolumeNode(), other)
+        self.assertFalse(slicer.mrmlScene.IsNodePresent(firstDisplayNode))

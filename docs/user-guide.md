@@ -11,7 +11,8 @@ whole [file format](annotation-format.md).
 
 ## Your first sphere
 
-1. **Volume → Load**, and pick a `.nii` or `.nii.gz` angiogram.
+1. **Volume → Load**, and pick a volume file — or choose one that is already open in the
+   selector next to it.
 2. Drag **Threshold** until the structures you are labelling stand out.
 
    <img width=70% src="images/step-1-volume.png" alt="A vessel tree in the 3D view after loading a volume and setting the threshold">
@@ -43,12 +44,13 @@ around that, you no longer need to.
 
 | control | what it does |
 | --- | --- |
-| **Load** | Opens a file dialog for a NIfTI volume (`.nii`, `.nii.gz`) and sets up its 3D rendering. Replaces the volume *this module* loaded last time; leaves everything else alone. |
+| **Selector** | Picks a volume that is already in the scene — one you loaded elsewhere, or a DICOM series loaded through Slicer's DICOM module — and sets up its 3D rendering. A picked volume stays yours: **Clean** and picking another one leave it in the scene. |
+| **Load** | Opens a file dialog for a volume file (NRRD, NIfTI, MetaImage, Analyze, TIFF, or anything else Slicer reads, under *All files*) and sets up its 3D rendering. Replaces the volume *this module* loaded last time; leaves everything else alone. |
 | **Visibility** | Shows or hides the 3D rendering. Not the slice views — those are Slicer's own. |
-| **Threshold** | Everything below it is transparent, so this is what turns the volume into a vessel tree. Starts a third of the way up the volume's intensity range; the slider's ends are that range. |
-| **Opacity** | How solid the vessels above the threshold appear. |
+| **Threshold** | Everything below it is transparent, so this is what hides the background around what you are labelling. Starts a third of the way up the volume's intensity range; the slider's ends are that range. |
+| **Opacity** | How solid everything above the threshold appears. |
 
-Both sliders do nothing until a volume is loaded through **Load**.
+Both sliders do nothing until a volume is loaded or picked.
 
 <img width=48% src="images/threshold-low.png" alt="A low threshold: background tissue obscures the vessels"> <img width=48% src="images/threshold-high.png" alt="A high threshold: only the brightest vessels remain">
 
@@ -82,7 +84,7 @@ that form a pair** is safe.
 | button | what it does |
 | --- | --- |
 | **Save** | Opens Slicer's Save Data dialog. Your annotation is the markups node — save that. Slicer 5 writes `.mrk.json` by default; `.fcsv` is offered for the legacy format. |
-| **Clean** | Removes the volume, the points and the spheres **this module** put in the scene. Anything else stays. |
+| **Clean** | Removes the volume, the points and the spheres **this module** put in the scene. Anything else stays — including a volume you picked in the selector. |
 
 **Clean discards unsaved points without asking.** Save first.
 
