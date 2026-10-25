@@ -106,3 +106,36 @@ class TestCenterAndRadius:
         # vtkSphereSource.SetRadius wants a number, not a 0-d numpy array.
         _, radius = spheres.center_and_radius([0, 0, 0], [1, 0, 0])
         assert isinstance(radius, float)
+
+
+class TestCentersAndRadii:
+    def test_matches_center_and_radius_pair_by_pair(self):
+        positions = [(0, 0, 0), (10, 0, 0), (5, 5, 5), (5, 5, 9)]
+
+        centers, radii = spheres.centers_and_radii(positions)
+
+        for n in range(2):
+            center, radius = spheres.center_and_radius(positions[2 * n], positions[2 * n + 1])
+            assert centers[n] == pytest.approx(center)
+            assert radii[n] == pytest.approx(radius)
+
+    def test_a_trailing_point_is_left_out(self):
+        centers, radii = spheres.centers_and_radii([(0, 0, 0), (2, 0, 0), (9, 9, 9)])
+
+        assert centers.shape == (1, 3)
+        assert radii.shape == (1,)
+
+    def test_no_points_is_no_spheres(self):
+        centers, radii = spheres.centers_and_radii(np.zeros((0, 3)))
+
+        assert centers.shape == (0, 3)
+        assert radii.shape == (0,)
+
+
+class TestSphereOfPoint:
+    def test_both_points_of_a_pair_belong_to_the_same_sphere(self):
+        assert spheres.sphere_of_point(4) == spheres.sphere_of_point(5) == 2
+
+    def test_inverts_point_indices(self):
+        for n in range(5):
+            assert all(spheres.sphere_of_point(i) == n for i in spheres.point_indices(n))

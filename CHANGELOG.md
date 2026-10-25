@@ -22,6 +22,12 @@ made. See `docs/annotation-format.md`.
 
 ### Changed
 
+- **Dragging a point and placing points are much faster with many spheres, using half the
+  memory.** All spheres are now one mesh copied from a single template, and a drag rewrites
+  only the moved sphere instead of re-tessellating and re-appending every one. Measured in
+  Slicer 5.12.4 at 200 spheres: a drag event 193 → ~50 ms (what remains is Slicer redrawing
+  the 2D outlines), placing 200 spheres 61 → 17 s, and 28.6 → 14.1 MB of mesh. The drawn
+  geometry is unchanged.
 - **Volume → Load accepts every common single-file format Slicer reads** — NRRD, NIfTI,
   MetaImage, Analyze, TIFF — plus *All files* for anything else, instead of NIfTI only.
 - **The sample case files are now `volume.nii.gz` and `annotation.mrk.json`** (were
