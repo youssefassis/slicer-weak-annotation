@@ -27,7 +27,7 @@ The rest of this page is for people changing the code.
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest        # Slicer-free suite; 65 tests, well under a second
+python -m pytest        # Slicer-free suite; 79 tests, well under a second
 python -m pytest -k center_and_radius
 ruff check .            # lint + the Slicer-free import boundary
 ruff format .           # formatting, checked in CI with --check
@@ -70,9 +70,10 @@ reintroduces a specific defect, so change them deliberately rather than in passi
   rather than replacing, because comparing two annotations of the same volume is a documented
   feature.
 - **Sphere *n* is control points *2n* and *2n+1*, across the flattened pairs of every owned
-  node**, and `self.spheres[n]` is its `vtkSphereSource`. Nothing renumbers. An odd point
+  node**, and `self.spheres[n]` is its `(center, radius)` and the *n*-th template-sized slice
+  of the one mesh the model observes. Nothing renumbers. An odd point
   count draws nothing rather than guessing the missing point.
-- **`move_spheres` checks the sphere count before writing.** `PointModifiedEvent` also fires
+- **`move_spheres` checks the layout before writing.** `PointModifiedEvent` also fires
   while points are added and removed, so without the check it would move the wrong sphere or
   index past the end. It falls back to `draw_spheres`.
 - **Attach markups observers through `adoptPointsNode`, never `node.AddObserver`.** The

@@ -9,6 +9,7 @@ SphereAnnotation/
 ├── SphereAnnotation.py         Slicer + Qt glue: widget, MRML nodes, signal wiring
 ├── SphereAnnotationLib/        the Slicer-free core
 │   ├── export.py               the spheres as a CSV table
+│   ├── mesh.py                 every sphere as one mesh, copied from a template
 │   ├── rendering.py            colour conversion and the volume opacity ramp
 │   └── spheres.py              point pairs read as spheres
 ├── Resources/UI/               the Qt Designer layout
@@ -129,25 +130,39 @@ it, in order. **Create** places into the most recent one; **Remove** takes the l
 the most recent node that has any — it used to take one off the end of *every* fiducial node
 in the scene, which quietly damaged the other annotations whenever more than one was loaded.
 
-### The model node and the append pipeline
+### The model node and the sphere mesh
 
-`self.spheres` is a `vtkSphereSource` per sphere, index-parallel with the flattened pairs
-across all of `pointsNodes`. They feed a `vtkAppendPolyData`, whose output the model node
-observes. That aliasing is what makes the two update paths differ:
+Every sphere is a copy of one unit sphere, tessellated once (`sphereTemplate`) and placed by
+`SphereAnnotationLib.mesh`: scaled by the radius, moved to the centre. All the copies live in
+one `vtkPolyData`, which the model node observes, and sphere *n* owns the *n*-th slice of its
+points. `self.spheres[n]` is that sphere's `(center, radius)`, index-parallel with the
+flattened pairs across all of `pointsNodes`; `self.drawnLayout` records how many spheres each
+node had when the mesh was built. That is what makes the update paths differ:
 
-- **`draw_spheres`** rebuilds the source list and the appender, then re-points the model at
-  the new output. Called when the *set* of points changes.
-- **`move_spheres`** writes new centres and radii into the existing sources and lets the
-  observed output carry them through. Called when a point *moves*.
+- **`draw_spheres`** rebuilds the mesh and re-points the model at it — but only when the
+  layout changed. Called when the *set* of points changes; the events that call it also
+  arrive when it has not, and then it hands over to `updateSpheres`.
+- **`move_spheres`** rewrites the one sphere the moved point belongs to (`PointModifiedEvent`
+  carries the point index).
+- **`updateSpheres`** rewrites the spheres whose points changed, and nothing when none did.
+  Called on a transform, and by `draw_spheres` when nothing came or went.
 
 `PointModifiedEvent` also fires while points are being added and removed, so `move_spheres`
-compares the sphere count first and falls back to `draw_spheres` when they disagree —
-otherwise it would move the wrong sphere, or index past the end.
+compares the layout first and falls back to `draw_spheres` when they disagree — otherwise it
+would move the wrong sphere, or index past the end.
 
-**Neither path renders anything itself.** Updating the appender modifies the polydata the
-model node is observing, the model node re-emits that, and the displayable managers turn it
-into a render request Slicer schedules at each view's own update rate. `move_spheres` used to
-call `forceRenderAllViews()` instead — a synchronous render of every 2D and 3D view, on every
+**Why this shape.** Measured in Slicer 5.12.4 at 200 spheres: the previous pipeline — one
+`vtkSphereSource` per sphere feeding a `vtkAppendPolyData` — spent ~100 ms re-appending every
+sphere on each drag event, rebuilt everything three times per placed pair, and held each
+sphere's mesh twice (28.6 MB). Rewriting one slice takes 0.025 ms and the mesh is held once
+(14.1 MB). What a drag still costs is downstream, in Slicer: every `meshModified` makes it
+recompute the 2D outlines of the whole mesh (~40 ms at 200 spheres), which is why nothing
+calls it when nothing moved.
+
+**No path renders anything itself.** Modifying the polydata the model node observes makes
+the model node re-emit that, and the displayable managers turn it into a render request
+Slicer schedules at each view's own update rate. `move_spheres` used to call
+`forceRenderAllViews()` instead — a synchronous render of every 2D and 3D view, on every
 `PointModifiedEvent`, an event that also fires for the preview point tracking the cursor
 during place mode. That put the cost of a full render of the layout on every mouse move and
 bypassed the throttling that exists to prevent exactly this.
@@ -164,7 +179,8 @@ hierarchy and reset the display properties on every drag.
 
 Four events on each owned markups node reach the widget, listed once in
 `pointsNodeObservations()`: `PointPositionDefinedEvent` and `PointRemovedEvent` →
-`draw_spheres`, `PointModifiedEvent` and `TransformModifiedEvent` → `move_spheres`. The
+`draw_spheres`, `PointModifiedEvent` → `move_spheres`, `TransformModifiedEvent` →
+`updateSpheres`. The
 transform one is there because the points are read in *world* coordinates: a transform
 applied to the node moves every point at once without firing a single point event.
 

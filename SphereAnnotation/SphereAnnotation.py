@@ -19,7 +19,8 @@ import slicer
 import vtk
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
-from SphereAnnotationLib import export, rendering, spheres
+from SphereAnnotationLib import export, mesh, rendering, spheres
+from vtk.util import numpy_support
 
 #: Name of the model node holding the drawn spheres. A display name only — the module finds
 #: the node through ``self.modelNode``, never by searching the scene for this string.
@@ -29,7 +30,8 @@ ANNOTATIONS_MODEL_NAME = "Annotations"
 POINTS_NODE_NAME = "Sphere annotation points"
 
 #: Facets per sphere, both directions. Enough that a sphere reads as a sphere at the zoom an
-#: object is annotated at, without making the append pipeline the bottleneck while dragging.
+#: object is annotated at. Every sphere is a copy of one template tessellated at this
+#: resolution, so it costs memory per sphere but no tessellation per drag.
 SPHERE_RESOLUTION = 30
 
 #: Width of the sphere outlines drawn on the 2D slice views, in screen pixels.
@@ -99,7 +101,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.pointsNodes = []
         self.modelNode = None
         self.spheres = []
-        self.appender = None
+        self.drawnLayout = ()
+        self.polyData = None
+        self.template = None
 
     def setup(self):
         ScriptedLoadableModuleWidget.setup(self)
@@ -213,7 +217,7 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             (slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.move_spheres),
             # The points are read in world coordinates, so a transform applied to the node
             # moves every one of them without a single point event being fired.
-            (slicer.vtkMRMLTransformableNode.TransformModifiedEvent, self.move_spheres),
+            (slicer.vtkMRMLTransformableNode.TransformModifiedEvent, self.updateSpheres),
         )
 
     def adoptPointsNode(self, node):
@@ -249,7 +253,9 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.pointsNodes = []
         self.modelNode = None
         self.spheres = []
-        self.appender = None
+        self.drawnLayout = ()
+        self.polyData = None
+        self.template = None
 
     def reset(self):
         """Remove what this module put in the scene, and nothing else."""
@@ -404,89 +410,171 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.draw_spheres()
 
     def draw_spheres(self, caller=None, event=None):
-        """Rebuild every sphere from the points, and put the result in the model node.
+        """Points were added or removed: rebuild the mesh, and put it in the model node.
 
-        Called when the set of points changes. :meth:`move_spheres` is the cheaper path for a
-        point that merely moved.
+        Rebuilds only when the number of spheres in some node changed. The events that call
+        this also arrive when it has not — ``PointPositionDefinedEvent`` follows the
+        ``PointModifiedEvent`` that already rebuilt for the same new point — and a second
+        rebuild was most of the cost of placing points: three full rebuilds per pair, measured
+        in Slicer 5.12.4. :meth:`updateSpheres` is the in-place path for everything else.
         """
-        self.spheres = []
-        self.appender = vtk.vtkAppendPolyData()
+        layout = self.sphereLayout()
+        if layout == self.drawnLayout and self.currentModelNode() is not None:
+            self.updateSpheres()
+            return
 
-        for node in self.currentPointsNodes():
-            for index in range(spheres.sphere_count(node.GetNumberOfControlPoints())):
-                source = vtk.vtkSphereSource()
-                source.SetPhiResolution(SPHERE_RESOLUTION)
-                source.SetThetaResolution(SPHERE_RESOLUTION)
-                self.applySphere(source, node, index)
-                self.spheres.append(source)
-                self.appender.AddInputConnection(source.GetOutputPort())
-
+        centers, radii = self.readSpheres()
+        self.drawnLayout = layout
+        self.spheres = list(zip(centers, radii, strict=True))
         if not self.spheres and self.currentModelNode() is None:
             # Nothing to draw, and nothing already drawn that needs clearing. Loading a
             # markups file with no whole pair in it should not leave an empty "Annotations"
             # model in the scene and tick a visibility box over it.
             return
 
-        model = self.ensureModelNode()
-        if self.spheres:
-            self.appender.Update()
-            # The model observes the appender's output, so `move_spheres` can update the
-            # sphere sources in place and have the model follow without touching it again.
-            model.SetAndObservePolyData(self.appender.GetOutput())
-        else:
-            # vtkAppendPolyData with no inputs has no output to observe.
-            model.SetAndObservePolyData(vtk.vtkPolyData())
+        # The model observes this polydata, so writing new points into it later is enough to
+        # have the views follow: the model node turns the modification into a render request
+        # Slicer schedules at each view's own rate. Nothing here forces a render — doing so
+        # rendered every view synchronously per PointModifiedEvent, which also fires for the
+        # preview point tracking the cursor in place mode.
+        self.polyData = self.sphereMesh(centers, radii)
+        self.ensureModelNode().SetAndObservePolyData(self.polyData)
 
         self.set_annotations_color()
         self.set_annotations_opacity()
         self.set_annotations_visibility()
 
-    def move_spheres(self, caller=None, event=None):
-        """Follow a point that was dragged, without rebuilding the pipeline.
+    @vtk.calldata_type(vtk.VTK_INT)
+    def move_spheres(self, caller, event, pointIndex):
+        """A point moved: rewrite the one sphere it belongs to, in place.
 
         ``PointModifiedEvent`` also fires while points are being added and removed, so the
-        sphere count is checked first: writing into ``self.spheres`` when it no longer lines
-        up with the points would move the wrong sphere, or index past the end.
+        layout is checked first: writing into the mesh when it no longer lines up with the
+        points would move the wrong sphere, or index past the end. It falls back to
+        :meth:`draw_spheres`.
         """
-        nodes = self.currentPointsNodes()
-        counts = [spheres.sphere_count(node.GetNumberOfControlPoints()) for node in nodes]
-        if sum(counts) != len(self.spheres):
+        if self.sphereLayout() != self.drawnLayout:
             self.draw_spheres()
             return
-
-        source = iter(self.spheres)
-        for node, count in zip(nodes, counts, strict=True):
-            for index in range(count):
-                self.applySphere(next(source), node, index)
-
-        if self.appender is not None:
-            # This is the only thing the redraw needs. Updating the appender modifies the
-            # polydata the model node was given in `draw_spheres`, the model node is
-            # observing it, and the displayable managers turn that into a render request
-            # that Slicer schedules at the view's own update rate.
-            #
-            # Which is why there is no `forceRenderAllViews()` here any more. It rendered
-            # every 2D and 3D view synchronously on every PointModifiedEvent — an event that
-            # also fires for the preview point tracking the cursor during place mode — so
-            # the drag ran at whatever a full render of the whole layout costs, with Slicer's
-            # own render throttling bypassed rather than used.
-            self.appender.Update()
-
-    def applySphere(self, source, node, index):
-        """Point ``source`` at the sphere that control points ``2*index`` and ``2*index+1`` define."""
-        first, second = spheres.point_indices(index)
-        # Zeroed, not `np.empty`. GetNthControlPointPositionWorld logs and returns without
-        # writing when it does not like the index, and uninitialised memory then reaches
-        # vtkSphereSource as a centre — a sphere somewhere arbitrary, or a NaN radius that
-        # takes the whole append pipeline with it, instead of one visibly at the origin.
+        sphere = spheres.sphere_of_point(pointIndex)
+        if pointIndex < 0 or sphere >= spheres.sphere_count(caller.GetNumberOfControlPoints()):
+            # Not one point but all of them, or a point with no partner yet: no single sphere.
+            if pointIndex < 0:
+                self.updateSpheres()
+            return
         a, b = np.zeros(3), np.zeros(3)
-        node.GetNthControlPointPositionWorld(first, a)
-        node.GetNthControlPointPositionWorld(second, b)
+        first, second = spheres.point_indices(sphere)
+        caller.GetNthControlPointPositionWorld(first, a)
+        caller.GetNthControlPointPositionWorld(second, b)
         center, radius = spheres.center_and_radius(a, b)
-        source.SetCenter(*center)
-        source.SetRadius(radius)
-        # No `source.Update()`: the appender pulls the whole pipeline, and executing each
-        # source by hand first only re-tessellates them one at a time ahead of it.
+        self.writeSphere(self.firstSphereOf(caller) + sphere, center, radius)
+        self.meshModified()
+
+    def updateSpheres(self, caller=None, event=None):
+        """Rewrite, in place, the spheres whose points moved — for when none came or went.
+
+        Only the spheres that changed, and nothing at all when none did, because every
+        :meth:`meshModified` costs far more downstream than here: Slicer recomputes the 2D
+        outlines of the whole mesh. Placing a point reaches this with nothing moved, once per
+        pair, and at 200 spheres that was ~40 ms of outline work each time, measured in
+        Slicer 5.12.4.
+        """
+        if self.polyData is None or not self.spheres:
+            return
+        centers, radii = self.readSpheres()
+        changed = [
+            index
+            for index, (center, radius) in enumerate(zip(centers, radii, strict=True))
+            if radius != self.spheres[index][1] or not np.array_equal(center, self.spheres[index][0])
+        ]
+        for index in changed:
+            self.writeSphere(index, centers[index], radii[index])
+        if changed:
+            self.meshModified()
+
+    def sphereLayout(self):
+        """How many spheres each owned node holds right now, keyed by node ID, in node order."""
+        return tuple(
+            (node.GetID(), spheres.sphere_count(node.GetNumberOfControlPoints())) for node in self.currentPointsNodes()
+        )
+
+    def firstSphereOf(self, node):
+        """The index in ``self.spheres`` of ``node``'s first sphere — spheres are numbered across nodes."""
+        first = 0
+        for nodeID, count in self.drawnLayout:
+            if nodeID == node.GetID():
+                return first
+            first += count
+        raise ValueError(f"{node.GetName()} is not one of this module's annotations")
+
+    def readSpheres(self):
+        """The centre and radius of every sphere, across every owned node, in order."""
+        centers, radii = [np.zeros((0, 3))], [np.zeros(0)]
+        for node in self.currentPointsNodes():
+            nodeCenters, nodeRadii = spheres.centers_and_radii(self.pointPositions(node))
+            centers.append(nodeCenters)
+            radii.append(nodeRadii)
+        return np.concatenate(centers), np.concatenate(radii)
+
+    def sphereTemplate(self):
+        """The unit sphere every drawn sphere is a copy of, tessellated once and kept."""
+        if self.template is None:
+            source = vtk.vtkSphereSource()
+            # A *unit* sphere, which vtkSphereSource is not by default: its radius is 0.5, and
+            # every sphere scaled from it came out half the size its points asked for.
+            source.SetRadius(1.0)
+            source.SetPhiResolution(SPHERE_RESOLUTION)
+            source.SetThetaResolution(SPHERE_RESOLUTION)
+            source.Update()
+            unit = source.GetOutput()
+            cells = unit.GetPolys()
+            self.template = {
+                "points": numpy_support.vtk_to_numpy(unit.GetPoints().GetData()).copy(),
+                "normals": numpy_support.vtk_to_numpy(unit.GetPointData().GetNormals()).copy(),
+                "offsets": numpy_support.vtk_to_numpy(cells.GetOffsetsArray()).copy(),
+                "connectivity": numpy_support.vtk_to_numpy(cells.GetConnectivityArray()).copy(),
+            }
+        return self.template
+
+    def sphereMesh(self, centers, radii):
+        """One polydata holding a copy of the template per sphere."""
+        polyData = vtk.vtkPolyData()
+        if not len(radii):
+            return polyData
+        template = self.sphereTemplate()
+        count = len(radii)
+        points = mesh.place_spheres(template["points"], centers, radii).astype(template["points"].dtype)
+        offsets, connectivity = mesh.tile_cells(
+            template["offsets"], template["connectivity"], count, len(template["points"])
+        )
+
+        vtkPoints = vtk.vtkPoints()
+        vtkPoints.SetData(numpy_support.numpy_to_vtk(points, deep=True))
+        polyData.SetPoints(vtkPoints)
+        cells = vtk.vtkCellArray()
+        cells.SetData(
+            numpy_support.numpy_to_vtk(offsets, deep=True, array_type=vtk.VTK_ID_TYPE),
+            numpy_support.numpy_to_vtk(connectivity, deep=True, array_type=vtk.VTK_ID_TYPE),
+        )
+        polyData.SetPolys(cells)
+        normals = numpy_support.numpy_to_vtk(np.tile(template["normals"], (count, 1)), deep=True)
+        normals.SetName("Normals")
+        polyData.GetPointData().SetNormals(normals)
+        return polyData
+
+    def writeSphere(self, index, center, radius):
+        """Overwrite sphere ``index``'s slice of the mesh — and only that slice."""
+        template = self.sphereTemplate()["points"]
+        size = len(template)
+        # A view onto the polydata's own buffer, so this writes into the mesh rather than a copy.
+        points = numpy_support.vtk_to_numpy(self.polyData.GetPoints().GetData())
+        points[index * size : (index + 1) * size] = mesh.place_sphere(template, center, radius)
+        self.spheres[index] = (center, radius)
+
+    def meshModified(self):
+        """Tell VTK the points changed: the points for their bounds, the polydata for the views."""
+        self.polyData.GetPoints().Modified()
+        self.polyData.Modified()
 
     def set_annotations_visibility(self, state=None):
         displayNode = self.annotationsDisplayNode()
@@ -723,13 +811,10 @@ class SphereAnnotationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             )
 
     def pointPositions(self, node):
-        """The world positions of every control point of ``node``, in order."""
-        positions = []
-        for index in range(node.GetNumberOfControlPoints()):
-            position = np.zeros(3)
-            node.GetNthControlPointPositionWorld(index, position)
-            positions.append(position)
-        return positions
+        """The world positions of every control point of ``node``, in order, as ``(n, 3)``."""
+        if node.GetNumberOfControlPoints() == 0:
+            return np.zeros((0, 3))
+        return slicer.util.arrayFromMarkupsControlPoints(node, world=True)
 
     def clearButton(self):
         """The Clean button: remove this module's volume, points and spheres from the scene.
@@ -830,12 +915,17 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         widget.draw_spheres()
 
         self.assertEqual(len(widget.spheres), 1)
-        self.assertAlmostEqual(widget.spheres[0].GetRadius(), 5.0)
-        self.assertEqual(list(widget.spheres[0].GetCenter()), [5.0, 0.0, 0.0])
+        self.assertAlmostEqual(widget.spheres[0][1], 5.0)
+        self.assertEqual(list(widget.spheres[0][0]), [5.0, 0.0, 0.0])
 
         model = widget.currentModelNode()
         self.assertIsNotNone(model)
         self.assertGreater(model.GetPolyData().GetNumberOfPoints(), 0)
+        # And drawn at the size the points asked for: the mesh reaches the two points.
+        bounds = [0.0] * 6
+        model.GetPolyData().GetBounds(bounds)
+        self.assertAlmostEqual(bounds[0], 0.0, delta=0.1)
+        self.assertAlmostEqual(bounds[1], 10.0, delta=0.1)
 
     def test_an_unpaired_point_draws_nothing(self):
         """A half-placed pair defines no sphere, and must not be guessed at."""
@@ -872,14 +962,14 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
         node.SetNthControlPointPositionWorld(1, 20.0, 0.0, 0.0)
 
         self.assertEqual(len(widget.spheres), 1)
-        self.assertAlmostEqual(widget.spheres[0].GetRadius(), 10.0)
-        self.assertEqual(list(widget.spheres[0].GetCenter()), [10.0, 0.0, 0.0])
+        self.assertAlmostEqual(widget.spheres[0][1], 10.0)
+        self.assertEqual(list(widget.spheres[0][0]), [10.0, 0.0, 0.0])
 
         # And the geometry the *model node* holds moved with it. Nothing forces a render any
-        # more, so this is the chain the whole redraw rests on: the appender updates, the
-        # polydata the model observes is modified, and the displayable managers ask for a
-        # render. A sphere source that moved while the model's polydata did not would leave
-        # the annotator dragging a point that nothing follows.
+        # more, so this is the chain the whole redraw rests on: the sphere's slice of the mesh
+        # is rewritten, the polydata the model observes is modified, and the displayable
+        # managers ask for a render. A sphere that moved in `widget.spheres` while the model's
+        # polydata did not would leave the annotator dragging a point that nothing follows.
         bounds = [0.0] * 6
         widget.currentModelNode().GetPolyData().GetBounds(bounds)
         # Not 20.0 exactly — a 30-facet hull falls just inside its own radius.
@@ -939,7 +1029,7 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
 
         self.assertEqual(len(widget.spheres), 1)
         self.assertEqual(widget.currentPointsNodes(), [kept])
-        self.assertAlmostEqual(widget.spheres[0].GetCenter()[0], 5.0)
+        self.assertAlmostEqual(widget.spheres[0][0][0], 5.0)
 
     def test_a_second_volume_is_shown_like_the_first(self):
         """The ramp may not depend on a widget value happening to change.
@@ -1023,10 +1113,8 @@ class SphereAnnotationTest(ScriptedLoadableModuleTest):
 
         self.assertEqual(len(rows), len(widget.spheres))
         self.assertEqual(rows[0]["label"], node.GetName())
-        self.assertAlmostEqual(rows[0]["radius"], widget.spheres[0].GetRadius())
-        self.assertEqual(
-            [rows[0]["center_r"], rows[0]["center_a"], rows[0]["center_s"]], list(widget.spheres[0].GetCenter())
-        )
+        self.assertAlmostEqual(rows[0]["radius"], widget.spheres[0][1])
+        self.assertEqual([rows[0]["center_r"], rows[0]["center_a"], rows[0]["center_s"]], list(widget.spheres[0][0]))
 
     def test_deleting_the_shown_volume_adopts_no_other(self):
         """The selector moves to a neighbouring volume on its own; the module must not follow."""

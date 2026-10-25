@@ -60,3 +60,21 @@ def center_and_radius(first, second):
     a = np.asarray(first, dtype=float)
     b = np.asarray(second, dtype=float)
     return (a + b) / 2, float(np.linalg.norm(a - b)) / 2
+
+
+def centers_and_radii(positions):
+    """Return ``(centers, radii)`` for every whole pair in ``positions``, in order.
+
+    The vectorised form of :func:`center_and_radius`, for redrawing every sphere of a node in
+    one step: ``centers`` is ``(n, 3)`` and ``radii`` is ``(n,)``. A trailing unpaired point is
+    left out, as everywhere else.
+    """
+    points = np.asarray(positions, dtype=float).reshape(-1, 3)
+    count = sphere_count(len(points))
+    pairs = points[: count * POINTS_PER_SPHERE].reshape(count, POINTS_PER_SPHERE, 3)
+    return pairs.mean(axis=1), np.linalg.norm(pairs[:, 0] - pairs[:, 1], axis=1) / 2
+
+
+def sphere_of_point(point_index):
+    """Return the index, within its node, of the sphere that control point ``point_index`` is half of."""
+    return point_index // POINTS_PER_SPHERE
